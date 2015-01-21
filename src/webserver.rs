@@ -29,7 +29,7 @@ That would be a trivial change, and not affect this architecture.
 */
 
 
-type PageFunction = fn(&WebRequest) -> WebResponse;
+pub type PageFunction = fn(&WebRequest) -> WebResponse;
 
 struct DispatchRule {
     prefix: String,

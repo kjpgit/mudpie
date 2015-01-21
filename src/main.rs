@@ -1,10 +1,5 @@
-#![feature(unsafe_destructor)]
-
-use webserver::{WebServer, WebRequest, WebResponse};
-mod webserver;
-mod threadpool;
-mod request;
-mod utils;
+extern crate mudpie;
+use mudpie::{WebServer, WebRequest, WebResponse};
 
 
 fn get_main_page(req: &WebRequest) -> WebResponse {
