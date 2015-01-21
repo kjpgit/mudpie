@@ -7,10 +7,10 @@ use mudpie::{WebServer, WebRequest, WebResponse};
 
 fn get_index_page(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
-    page.push_str("<h1>Index</h1>");
+    page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
-    page.push_str("<li><a href=\"/hello\">/hello</a>");
-    page.push_str("<li><a href=\"/panic\">/panic</a>");
+    page.push_str("<li><a href=\"/hello\">/hello</a> Shows Request Headers");
+    page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
     page.push_str("</ul>");
     return WebResponse::new_html(page);
 }
@@ -19,7 +19,22 @@ fn get_index_page(req: &WebRequest) -> WebResponse {
 fn get_hello_page(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Hello World!</h1>");
-    page.push_str("<p>Sample Paragraph</p>");
+    page.push_str("<p>Unicode text: \u03A6\u03A9\u20AC\u20AA</p>");
+
+    page.push_str("<h3>Request Line</h3>");
+    page.push_str("<ul>");
+    page.push_str(format!("<li>Verb: {}", req.verb).as_slice());
+    page.push_str(format!("<li>Path: {}", req.path).as_slice());
+    page.push_str(format!("<li>Protocol: {}", req.protocol).as_slice());
+    page.push_str("</ul>");
+
+    page.push_str("<h3>Request Headers</h3>");
+    page.push_str("<ul>");
+    for (k, v) in req.headers.iter() {
+        page.push_str(format!("<li>{}: {}", k, v).as_slice());
+    }
+    page.push_str("</ul>");
+
     return WebResponse::new_html(page);
 }
 
