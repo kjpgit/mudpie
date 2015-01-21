@@ -39,10 +39,9 @@ impl ThreadPool {
         loop {
             if *guard > 0 {
                 // todo: join it
-                println!("uh oh, a worker thread died!");
                 *guard -= 1;
+                return;
             } else {
-                println!("monitoring worker threads");
                 guard = self.shared_ctx.watchdog_cvar.wait(guard).unwrap();
             }
         }

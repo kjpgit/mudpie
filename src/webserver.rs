@@ -104,6 +104,8 @@ impl WebServer {
         }
         loop {
             self.thread_pool.wait_for_thread_exit();
+            println!("uh oh, a worker thread died");
+            println!("starting another worker");
             self.start_new_worker();
         }
     }
