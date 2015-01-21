@@ -30,9 +30,8 @@ is not bothered and there is no overhead of context switching between threads.
 If a worker thread panics, it will attempt to send a 500 Internal Error if a
 response had not yet been started.  Then the worker thread will be destroyed.
 
-The main thread will notice a dead worker thread immediately, since a
-condition variable is used.  It will +join()+ the dead worker thread to clean
-up OS resources and then spawn another worker thread.  
+The main thread will notice a dead worker thread immediately (a condition
+variable is used), and then spawn a replacement worker thread.
 
 If the main thread panics (e.g. because spawning a new worker fails), or a
 double panic happens in a worker thread, the entire process will abort.  This
