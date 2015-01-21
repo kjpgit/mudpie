@@ -8,12 +8,17 @@ Ferrite is not intended to be a front end.  A front end, like nginx, handles
 SSL termination and request/response buffering, and is typically event-driven
 for scalability.  
 
+Ferrite does not currently support "streaming" requests or responses; request
+and response sizes are expected to be moderate and easily in memory.
+
+
 == Implementation
 
 Ferrite is multi threaded: it has one main thread and N worker threads.  If a
-worker thread panics, the main thread will notice (immediately) and spawn
-another worker thread.  If the main thread panics (e.g. because spawning a new
-worker fails), the entire process will abort.  
+worker thread panics, the main thread will notice (immediately, due to waiting
+on a condition variable) and spawn another worker thread.  If the main thread
+panics (e.g. because spawning a new worker fails), the entire process will
+abort.  
 
 A higher level watchdog process, like systemd, should monitor and restart the
 Ferrite process(es) if they fail.
@@ -21,3 +26,12 @@ Ferrite process(es) if they fail.
 Each worker thread independently calls +accept()+ and runs its own processing
 loop; the main thread is not bothered and there is no overhead of context
 switching between threads.
+
+== Routing
+
+Ferrite has a simple goal: route URL path prefixes to user-specified
+processing functions.  
+
+== License
+
+Public Domain.  Let's keep lawyers out of software.
