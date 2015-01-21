@@ -4,8 +4,9 @@ use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 use std::thread::Thread;
-use std::sync::{Condvar,Mutex};
 use std::os::unix::prelude;
+
+use threadpool::ThreadPool;
 
 /*
 
@@ -36,10 +37,6 @@ struct DispatchRule {
 struct WorkerSharedContext {
     rules: Vec<DispatchRule>,
     acceptor: TcpAcceptor,
-
-    // for thread restarting
-    watchdog_mutex: Mutex<i64>,
-    watchdog_cvar: Condvar,
 }
 
 struct WorkerPrivateContext {
@@ -67,13 +64,17 @@ impl WebResponse {
 
 pub struct WebServer {
     rules: Option<Vec<DispatchRule>>,
+    thread_pool: ThreadPool,
+    worker_shared_context: Option<Arc<WorkerSharedContext>>,
 }
 
 impl WebServer {
     pub fn new() -> WebServer {
         let ret = WebServer{
                 rules: Some(Vec::new()),
-                };
+                thread_pool: ThreadPool::new(),
+                worker_shared_context: None,
+            };
         return ret;
     }
 
@@ -86,7 +87,7 @@ impl WebServer {
         fn_map.push(rule);
     }
 
-    pub fn run_legacy(&mut self, address: &str, port: i32, num_threads: i32) {
+    pub fn run(&mut self, address: &str, port: i32, num_threads: i32) {
         let addr = format!("{}:{}", address, port);
         let listener = TcpListener::bind(addr.as_slice());
         let mut acceptor = listener.listen().unwrap();
@@ -97,38 +98,31 @@ impl WebServer {
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
             acceptor: acceptor,
-            watchdog_mutex: Mutex::new(0),
-            watchdog_cvar: Condvar::new(),
         };
-        let ctx = Arc::new(ctx);
+        self.worker_shared_context = Some(Arc::new(ctx));
 
         for i in range(0, num_threads) {
-            let priv_ctx = WorkerPrivateContext {
-                thread_id: i as i64,
-                shared_ctx: ctx.clone(),
-            };
-            let handle = Thread::spawn(move ||
-                    worker_thread_main(priv_ctx)
-                );
+            self.start_new_worker();
         }
-
-        let mut guard = ctx.watchdog_mutex.lock().unwrap();
         loop {
-            if *guard > 0 {
-                println!("uh oh, a worker thread died!");
-                *guard -= 1;
-            } else {
-                println!("monitoring worker threads");
-                guard = ctx.watchdog_cvar.wait(guard).unwrap();
-            }
+            self.thread_pool.wait_for_thread_exit();
+            self.start_new_worker();
         }
+    }
+
+    fn start_new_worker(&mut self) {
+        let priv_ctx = WorkerPrivateContext {
+            thread_id: 0i64,
+            shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
+        };
+        self.thread_pool.execute(move || {
+            worker_thread_main(priv_ctx);
+        });
     }
 }
 
 
 fn worker_thread_main(ctx: WorkerPrivateContext) {
-    let sentinel = WorkerSentinel { ctx: &ctx };
-
     println!("worker thread started: {}", ctx.thread_id);
     let mut acceptor = ctx.shared_ctx.acceptor.clone();
     loop {
@@ -137,21 +131,6 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
             Ok(sock) => process_http_connection(&ctx, sock),
             Err(err) => println!("error :-( {}", err)
         }
-    }
-}
-
-struct WorkerSentinel<'a> {
-    ctx: &'a WorkerPrivateContext,
-}
-
-#[unsafe_destructor]
-impl<'a> Drop for WorkerSentinel<'a> {
-    fn drop(&mut self) {
-        // ruh roh! alert master!
-        // todo: error check?
-        let mut lock = self.ctx.shared_ctx.watchdog_mutex.lock().unwrap();
-        *lock += 1;
-        self.ctx.shared_ctx.watchdog_cvar.notify_one();
     }
 }
 

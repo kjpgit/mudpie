@@ -2,6 +2,7 @@
 
 use webserver::{WebServer, WebRequest, WebResponse};
 mod webserver;
+mod threadpool;
 
 
 fn get_main_page(req: &WebRequest) -> WebResponse {
@@ -37,5 +38,5 @@ fn main() {
     svr.add_path("/panic", get_panic_page);
 
     // Run with 10 worker threads
-    svr.run_legacy("127.0.0.1", 8000, 10);
+    svr.run("127.0.0.1", 8000, 10);
 }
