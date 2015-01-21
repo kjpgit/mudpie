@@ -1,6 +1,6 @@
 pub use webserver::{WebServer, WebRequest, WebResponse};
 mod webserver;
-mod threadpool;
+pub mod threadpool;
 mod request;
 mod utils;
 

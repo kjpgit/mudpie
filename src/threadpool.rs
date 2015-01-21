@@ -1,14 +1,22 @@
+//! Simple generic thread pool
+
 use std::sync::{Arc,Condvar,Mutex};
 use std::thread::Thread;
 
 
+/// Like Taskpool, but delegates recovery to a main thread.
+///
+/// Designed to be very resilient on thread panic - no memory allocations are
+/// done, just a condvar is signaled.
+///
+/// TODO: join() the paniced thread during cleanup
 pub struct ThreadPool {
     shared_ctx: Arc<ThreadPoolShared>,
 }
 
 // Shared between all workers and the main thread
 struct ThreadPoolShared {
-    // For thread restarting
+    // Increments on each thread panic
     watchdog_mutex: Mutex<i64>,
     watchdog_cvar: Condvar,
 }
@@ -26,6 +34,9 @@ impl ThreadPool {
         return ret;
     }
 
+    /// Spawn a worker thread that executes a job function once.
+    ///
+    /// If the thread panics, it will not be respawned.
     pub fn execute<F: FnOnce() + Send>(&mut self, job: F) {
         let ctx = self.shared_ctx.clone();
         Thread::spawn(move || {
@@ -34,6 +45,9 @@ impl ThreadPool {
         });
     }
 
+    /// Returns if a worker thread terminates (e.g. from panic).
+    ///
+    /// You can call this in a loop and respawn threads as needed.
     pub fn wait_for_thread_exit(&mut self) {
         let mut guard = self.shared_ctx.watchdog_mutex.lock().unwrap();
         loop {
