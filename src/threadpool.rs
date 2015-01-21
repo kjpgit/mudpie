@@ -7,9 +7,9 @@ use std::thread::Thread;
 /// Like Taskpool, but delegates recovery to a main thread.
 ///
 /// Designed to be very resilient on thread panic - no memory allocations are
-/// done, just a condvar is signaled.
+/// done, just a condvar is signaled.  Worker threads are detached, so they
+/// don't need to be joined on failure to release resources.
 ///
-/// TODO: join() the paniced thread during cleanup
 pub struct ThreadPool {
     shared_ctx: Arc<ThreadPoolShared>,
 }
@@ -34,7 +34,7 @@ impl ThreadPool {
         return ret;
     }
 
-    /// Spawn a worker thread that executes a job function once.
+    /// Spawn a detached worker thread that executes a job function once.
     ///
     /// If the thread panics, it will not be respawned.
     pub fn execute<F: FnOnce() + Send>(&mut self, job: F) {
@@ -48,11 +48,13 @@ impl ThreadPool {
     /// Returns if a worker thread terminates (e.g. from panic).
     ///
     /// You can call this in a loop and respawn threads as needed.
+    /// You might want to add a teen-tiny sleep delay because we have no way to
+    /// join() on the dead thread, so thread handles could pile up in theory if
+    /// respawning runs away.
     pub fn wait_for_thread_exit(&mut self) {
         let mut guard = self.shared_ctx.watchdog_mutex.lock().unwrap();
         loop {
             if *guard > 0 {
-                // todo: join it
                 *guard -= 1;
                 return;
             } else {
