@@ -1,3 +1,4 @@
+#![allow(unstable)]
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
 
@@ -5,7 +6,7 @@ use mudpie::{WebServer, WebRequest, WebResponse};
 // Demonstrates use of the mudpie library
 
 
-fn get_index_page(req: &WebRequest) -> WebResponse {
+fn get_index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
@@ -19,7 +20,7 @@ fn get_index_page(req: &WebRequest) -> WebResponse {
 fn get_hello_page(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Hello World!</h1>");
-    page.push_str("<p>Unicode text: \u03A6\u03A9\u20AC\u20AA</p>");
+    page.push_str("<p>Unicode text: \u{03A6}\u{03A9}\u{20AC}\u{20AA}</p>");
 
     page.push_str("<h3>Request Line</h3>");
     page.push_str("<ul>");
@@ -40,7 +41,7 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
 
 
 // This will automatically generate a 500 Internal Server Error
-fn get_panic_page(req: &WebRequest) -> WebResponse {
+fn get_panic_page(_req: &WebRequest) -> WebResponse {
     panic!("I can't go on!");
 }
 

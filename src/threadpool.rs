@@ -40,7 +40,7 @@ impl ThreadPool {
     pub fn execute<F: FnOnce() + Send>(&mut self, job: F) {
         let ctx = self.shared_ctx.clone();
         Thread::spawn(move || {
-            let sentinel = WorkerSentinel { ctx: ctx };
+            let _sentinel = WorkerSentinel { ctx: ctx };
             job();
         });
     }

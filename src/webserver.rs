@@ -2,7 +2,6 @@ use std::sync::Arc;
 use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
-use std::thread::Thread;
 
 pub use request::WebRequest;
 
@@ -48,7 +47,7 @@ struct WorkerPrivateContext {
 
 pub struct WebResponse {
     data: Vec<u8>,
-    content_type: String
+    _content_type: String
 }
 
 impl WebResponse {
@@ -59,7 +58,7 @@ impl WebResponse {
     pub fn new_html(body: String) -> WebResponse {
         return WebResponse{
                 data: body.into_bytes(),
-                content_type: "text/html; charset=utf-8".to_string()
+                _content_type: "text/html; charset=utf-8".to_string()
             };
     }
 }
@@ -95,10 +94,10 @@ impl WebServer {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
         let listener = TcpListener::bind(addr.as_slice());
-        let mut acceptor = listener.listen().unwrap();
+        let acceptor = listener.listen().unwrap();
         
         // .clone doesn't work, compiler bug
-        let mut page_fn_copy = self.rules.take().unwrap();
+        let page_fn_copy = self.rules.take().unwrap();
 
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
@@ -107,7 +106,7 @@ impl WebServer {
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", num_threads);
-        for i in range(0, num_threads) {
+        for _ in range(0, num_threads) {
             self.start_new_worker();
         }
 
@@ -134,7 +133,7 @@ impl WebServer {
 fn worker_thread_main(ctx: WorkerPrivateContext) {
     let mut acceptor = ctx.shared_ctx.acceptor.clone();
     loop {
-        let mut res = acceptor.accept();
+        let res = acceptor.accept();
         match res {
             Ok(sock) => process_http_connection(&ctx, sock),
             Err(err) => println!("socket error :-( {}", err)
@@ -182,8 +181,8 @@ impl HTTPContext {
 
         // todo: error check
         self.started_response = true;
-        self.stream.write_str(headers.as_slice());
-        self.stream.write(body);
+        self.stream.write_str(headers.as_slice()).unwrap();
+        self.stream.write(body).unwrap();
     }
 }
 
