@@ -11,12 +11,13 @@ pub struct WebRequest {
 }
 
 
-// request_bytes: all headers 
+// request_bytes: request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     let lines = utils::split_bytes_on_crlf(request_bytes);
 
+    // "verb url/path protocol"
     let request_line = lines[0];
-    let request_parts = utils::split_bytes_on(request_line, b' ', 3);
+    let request_parts = utils::split_bytes_on(request_line, b' ', 2);
     assert_eq!(request_parts.len(), 3);
 
     let verb = request_parts[0];
@@ -35,6 +36,8 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
             // The last part (\r\n\r\n) appears as an empty header
             continue;
         }
+
+        // "Header: Value"
         let header_parts = utils::split_bytes_on(*line, b':', 1);
         assert_eq!(header_parts.len(), 2);
         let header_name = String::from_utf8_lossy(header_parts[0]).into_owned();
