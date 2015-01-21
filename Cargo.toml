@@ -3,3 +3,7 @@
 name = "mudpie"
 version = "0.0.1"
 authors = ["kjp"]
+description = "HTTP Application Server for Rust (Alpha)"
+repository = "https://github.com/kjpgit/mudpie"
+readme = "README.adoc"
+license = "Unlicense"
