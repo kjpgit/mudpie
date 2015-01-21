@@ -155,10 +155,12 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
             sentinel.send_response(200, "OK DOKIE",
-                    &response.data);
-            break;
+                    response.data.as_slice());
+            return;
         }
     }
+    sentinel.send_response(404, "Not Found, Bro", 
+        b"Resource not found");
 }
 
 struct HTTPContext {
@@ -168,7 +170,7 @@ struct HTTPContext {
 
 impl HTTPContext {
     fn send_response(&mut self, code: i32, 
-            status: &str, body: &Vec<u8>) {
+            status: &str, body: &[u8]) {
         let mut headers = String::new();
         headers.push_str(format!("HTTP/1.1 {} {}\r\n", code, status).as_slice());
         headers.push_str("Connection: close\r\n");
@@ -177,7 +179,7 @@ impl HTTPContext {
         // todo: error check
         self.started_response = true;
         self.stream.write_str(headers.as_slice());
-        self.stream.write(body.as_slice());
+        self.stream.write(body);
     }
 }
 
@@ -187,7 +189,7 @@ impl Drop for HTTPContext {
         if !self.started_response {
             self.send_response(500, 
                 "Uh oh :-(", 
-                &"Internal Error".to_string().into_bytes());
+                b"Internal Error");
         }
     }
 }
