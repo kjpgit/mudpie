@@ -5,11 +5,12 @@
 
 == Overview
 
-{app} is a multi-threaded HTTP application server for the Rust language.
+{app} is a multi-threaded HTTP application server for the amazingly awesome
+Rust language.  It is useful for creating a REST API or other dynamic content.
 
-{app} is not intended to be a front end.  A front end, like nginx, handles
-SSL termination and request/response buffering, and is typically event-driven
-for scalability.  
+{app} is not intended to be a front end server.  A front end, like nginx,
+handles SSL termination and request/response buffering for slow clients, and
+is typically event-driven for scalability.  
 
 {app} does not currently support "streaming" requests or responses; request
 and response sizes are expected to be moderate and easily fit in memory.
@@ -17,17 +18,27 @@ and response sizes are expected to be moderate and easily fit in memory.
 
 == Implementation
 
-{app} has one main thread and N worker threads.  If a worker thread panics,
-the main thread will notice (immediately, due to waiting on a condition
-variable) and spawn another worker thread.  If the main thread panics (e.g.
-because spawning a new worker fails), the entire process will abort.  
+{app} has one main thread and N worker threads.  The main thread's only job is
+to monitor the worker threads.  A higher level watchdog process, like systemd,
+should monitor and restart the {app} process if it exits due to out of memory
+or double panic (which should be very rare).
 
-A higher level watchdog process, like systemd, should monitor and restart the
-{app} process(es) if they fail.
+Each worker thread independently calls +accept()+ on its own copy of the
+listening socket and runs its own connection processing loop.  The main thread
+is not bothered and there is no overhead of context switching between threads.
 
-Each worker thread independently calls +accept()+ and runs its own processing
-loop; the main thread is not bothered and there is no overhead of context
-switching between threads.
+If a worker thread panics, it will attempt to send a 500 Internal Error if a
+response had not yet been started.  Then the worker thread will be destroyed.
+
+The main thread will notice a dead worker thread immediately, since a
+condition variable is used.  It will +join()+ the dead worker thread to clean
+up OS resources and then spawn another worker thread.  
+
+If the main thread panics (e.g. because spawning a new worker fails), or a
+double panic happens in a worker thread, the entire process will abort.  This
+is standard Rust behavior.
+
+
 
 == Routing
 
