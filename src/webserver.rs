@@ -42,7 +42,6 @@ struct WorkerSharedContext {
 }
 
 struct WorkerPrivateContext {
-    thread_id: i64,
     shared_ctx: Arc<WorkerSharedContext>,
 }
 
@@ -119,7 +118,6 @@ impl WebServer {
 
     fn start_new_worker(&mut self) {
         let priv_ctx = WorkerPrivateContext {
-            thread_id: 0i64,
             shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
         };
         self.thread_pool.execute(move || {
@@ -130,7 +128,6 @@ impl WebServer {
 
 
 fn worker_thread_main(ctx: WorkerPrivateContext) {
-    println!("worker thread started: {}", ctx.thread_id);
     let mut acceptor = ctx.shared_ctx.acceptor.clone();
     loop {
         let mut res = acceptor.accept();
