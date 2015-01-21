@@ -9,7 +9,7 @@ SSL termination and request/response buffering, and is typically event-driven
 for scalability.  
 
 Ferrite does not currently support "streaming" requests or responses; request
-and response sizes are expected to be moderate and easily in memory.
+and response sizes are expected to be moderate and easily fit in memory.
 
 
 == Implementation
@@ -34,4 +34,4 @@ processing functions.
 
 == License
 
-Public Domain.  Let's keep lawyers out of software.
+Public Domain.  
