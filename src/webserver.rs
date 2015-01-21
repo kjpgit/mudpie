@@ -53,6 +53,10 @@ pub struct WebResponse {
 }
 
 impl WebResponse {
+    /// Shortcut for creating a successful Unicode HTML response.
+    ///
+    /// * response code: 200
+    /// * content-type: "text/html; charset=utf-8"
     pub fn new_html(body: String) -> WebResponse {
         return WebResponse{
                 data: body.into_bytes(),
@@ -86,6 +90,8 @@ impl WebServer {
         fn_map.push(rule);
     }
 
+    /// Starts `num_threads` worker threads.  If any fail, they will be
+    /// respawned.  This function does not return.
     pub fn run(&mut self, address: &str, port: i32, num_threads: i32) {
         let addr = format!("{}:{}", address, port);
         let listener = TcpListener::bind(addr.as_slice());
