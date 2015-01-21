@@ -1,10 +1,8 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 use std::thread::Thread;
-use std::os::unix::prelude;
 
 use threadpool::ThreadPool;
 
@@ -45,7 +43,7 @@ struct WorkerPrivateContext {
 }
 
 pub struct WebRequest { 
-    header: bool,
+    path: String,
 }
 
 pub struct WebResponse {
@@ -138,13 +136,20 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 // HTTP specific parsing/errors
 
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
-    let mut sentinel = HTTPContext{ stream: stream, started_response: false };
-    //let data = sentinel.stream.read_to_end();
-    let ref pfn = ctx.shared_ctx.rules[0];
-    let req = WebRequest { header: false };
-    let response = (pfn.page_fn)(&req);
-    sentinel.send_response(200, "OK DOKIE",
-            &response.data);
+    let mut sentinel = HTTPContext { 
+        stream: stream, 
+        started_response: false 
+    };
+    let req = read_request(&mut sentinel.stream);
+    for rule in ctx.shared_ctx.rules.iter() {
+        // todo: prefix
+        if rule.prefix == req.path {
+            let response = (rule.page_fn)(&req);
+            sentinel.send_response(200, "OK DOKIE",
+                    &response.data);
+            break;
+        }
+    }
 }
 
 struct HTTPContext {
@@ -175,5 +180,71 @@ impl Drop for HTTPContext {
                 "Uh oh :-(", 
                 &"Internal Error".to_string().into_bytes());
         }
+    }
+}
+
+fn read_request(stream: &mut TcpStream) -> WebRequest {
+    let mut req_buffer = Vec::<u8>::new();
+    let mut chunk_buffer = [0; 1024];  // todo: move to heap
+    loop {
+        let ret = stream.read(&mut chunk_buffer);
+        let size = ret.unwrap();
+        //println!("size {}", size);
+        if size > 0 {
+            req_buffer.extend(chunk_buffer.slice(0, size).iter().cloned());
+            //println!("req_buffer {}", req_buffer.len());
+            let split_pos = memmem(req_buffer.as_slice(), b"\r\n\r\n");
+            if split_pos.is_some() {
+                let split_pos = split_pos.unwrap();
+                println!("split pos: {}", split_pos);
+                if split_pos >= 0 {
+                    return parse_request(req_buffer.as_slice());
+                }
+            }
+        }
+    }
+}
+
+
+// request_bytes: all headers 
+fn parse_request(request_bytes: &[u8]) -> WebRequest {
+    let proto_end = memmem(request_bytes, b"\r\n").unwrap();
+    let proto_line = request_bytes.slice(0, proto_end as usize);
+
+    println!("proto line: {}", String::from_utf8_lossy(proto_line));
+    let verb_end = memmem(proto_line, b" ").unwrap();
+
+    let verb = proto_line.slice(0, verb_end);
+
+    let path_buffer = proto_line.slice(verb_end + 1, proto_line.len());
+    let path_end = memmem(path_buffer, b" ").unwrap();
+    let path = path_buffer.slice(0, path_end);
+
+    println!("verb: {}, path: {}", 
+            String::from_utf8_lossy(verb),
+            String::from_utf8_lossy(path));
+
+    return WebRequest {
+        path: String::from_utf8(path.to_vec()).unwrap(),
+    };
+}
+
+
+
+// This really needs to be standard
+fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if needle.len() == 0 {
+        panic!("memmem: empty needle");
+    }
+    let mut idx = 0us;
+    loop {
+        let end_idx = idx + needle.len();
+        if end_idx > haystack.len() {
+            return None;
+        }
+        if haystack.slice(idx, end_idx) == needle {
+            return Some(idx);
+        }
+        idx += 1;
     }
 }
