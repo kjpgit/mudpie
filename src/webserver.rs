@@ -4,7 +4,11 @@ use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 use std::thread::Thread;
 
+pub use request::WebRequest;
+
 use threadpool::ThreadPool;
+use request;
+use utils;
 
 /*
 
@@ -42,9 +46,6 @@ struct WorkerPrivateContext {
     shared_ctx: Arc<WorkerSharedContext>,
 }
 
-pub struct WebRequest { 
-    path: String,
-}
 
 pub struct WebResponse {
     data: Vec<u8>,
@@ -195,58 +196,14 @@ fn read_request(stream: &mut TcpStream) -> WebRequest {
         if size > 0 {
             req_buffer.extend(chunk_buffer.slice(0, size).iter().cloned());
             //println!("req_buffer {}", req_buffer.len());
-            let split_pos = memmem(req_buffer.as_slice(), b"\r\n\r\n");
+            let split_pos = utils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
                 println!("split pos: {}", split_pos);
                 if split_pos >= 0 {
-                    return parse_request(req_buffer.as_slice());
+                    return request::parse_request(req_buffer.as_slice());
                 }
             }
         }
-    }
-}
-
-
-// request_bytes: all headers 
-fn parse_request(request_bytes: &[u8]) -> WebRequest {
-    let proto_end = memmem(request_bytes, b"\r\n").unwrap();
-    let proto_line = request_bytes.slice(0, proto_end as usize);
-
-    println!("proto line: {}", String::from_utf8_lossy(proto_line));
-    let verb_end = memmem(proto_line, b" ").unwrap();
-
-    let verb = proto_line.slice(0, verb_end);
-
-    let path_buffer = proto_line.slice(verb_end + 1, proto_line.len());
-    let path_end = memmem(path_buffer, b" ").unwrap();
-    let path = path_buffer.slice(0, path_end);
-
-    println!("verb: {}, path: {}", 
-            String::from_utf8_lossy(verb),
-            String::from_utf8_lossy(path));
-
-    return WebRequest {
-        path: String::from_utf8(path.to_vec()).unwrap(),
-    };
-}
-
-
-
-// This really needs to be standard
-fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.len() == 0 {
-        panic!("memmem: empty needle");
-    }
-    let mut idx = 0us;
-    loop {
-        let end_idx = idx + needle.len();
-        if end_idx > haystack.len() {
-            return None;
-        }
-        if haystack.slice(idx, end_idx) == needle {
-            return Some(idx);
-        }
-        idx += 1;
     }
 }
