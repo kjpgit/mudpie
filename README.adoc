@@ -1,0 +1,23 @@
+= Ferrite
+
+== Overview
+
+Ferrite is a multi-threaded HTTP application server for the Rust language.
+
+Ferrite is not intended to be a front end.  A front end, like nginx, handles
+SSL termination and request/response buffering, and is typically event-driven
+for scalability.  
+
+== Implementation
+
+Ferrite is multi threaded: it has one main thread and N worker threads.  If a
+worker thread panics, the main thread will notice (immediately) and spawn
+another worker thread.  If the main thread panics (e.g. because spawning a new
+worker fails), the entire process will abort.  
+
+A higher level watchdog process, like systemd, should monitor and restart the
+Ferrite process(es) if they fail.
+
+Each worker thread independently calls +accept()+ and runs its own processing
+loop; the main thread is not bothered and there is no overhead of context
+switching between threads.
