@@ -93,6 +93,7 @@ impl WebServer {
     /// respawned.  This function does not return.
     pub fn run(&mut self, address: &str, port: i32, num_threads: i32) {
         let addr = format!("{}:{}", address, port);
+        println!("listening on {}", addr);
         let listener = TcpListener::bind(addr.as_slice());
         let mut acceptor = listener.listen().unwrap();
         
@@ -105,9 +106,12 @@ impl WebServer {
         };
         self.worker_shared_context = Some(Arc::new(ctx));
 
+        println!("starting {} worker threads", num_threads);
         for i in range(0, num_threads) {
             self.start_new_worker();
         }
+
+        println!("starting monitor loop");
         loop {
             self.thread_pool.wait_for_thread_exit();
             println!("uh oh, a worker thread died");
@@ -133,7 +137,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
         let mut res = acceptor.accept();
         match res {
             Ok(sock) => process_http_connection(&ctx, sock),
-            Err(err) => println!("error :-( {}", err)
+            Err(err) => println!("socket error :-( {}", err)
         }
     }
 }
@@ -147,15 +151,18 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         started_response: false 
     };
     let req = read_request(&mut sentinel.stream);
+    println!("parsed request ok: path={}", req.path);
     for rule in ctx.shared_ctx.rules.iter() {
         // todo: prefix
         if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
+            println!("sending response");
             sentinel.send_response(200, "OK DOKIE",
                     response.data.as_slice());
             return;
         }
     }
+    println!("no rule matched {}", req.path);
     sentinel.send_response(404, "Not Found, Bro", 
         b"Resource not found");
 }
@@ -197,17 +204,15 @@ fn read_request(stream: &mut TcpStream) -> WebRequest {
     loop {
         let ret = stream.read(&mut chunk_buffer);
         let size = ret.unwrap();
-        //println!("size {}", size);
+        //println!("read size {}", size);
         if size > 0 {
             req_buffer.extend(chunk_buffer.slice(0, size).iter().cloned());
             //println!("req_buffer {}", req_buffer.len());
             let split_pos = utils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
-                println!("split pos: {}", split_pos);
-                if split_pos >= 0 {
-                    return request::parse_request(req_buffer.as_slice());
-                }
+                println!("read raw request: {} bytes", split_pos);
+                return request::parse_request(req_buffer.as_slice());
             }
         }
     }
