@@ -5,6 +5,7 @@ use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
 pub use request::WebRequest;
+pub use response::WebResponse;
 
 use threadpool::ThreadPool;
 use request;
@@ -46,23 +47,6 @@ struct WorkerPrivateContext {
 }
 
 
-pub struct WebResponse {
-    data: Vec<u8>,
-    content_type: String
-}
-
-impl WebResponse {
-    /// Shortcut for creating a successful Unicode HTML response.
-    ///
-    /// * response code: 200
-    /// * content-type: "text/html; charset=utf-8"
-    pub fn new_html(body: String) -> WebResponse {
-        return WebResponse{
-                data: body.into_bytes(),
-                content_type: "text/html; charset=utf-8".to_string()
-            };
-    }
-}
 
 pub struct WebServer {
     rules: Option<Vec<DispatchRule>>,
@@ -156,11 +140,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         // todo: prefix
         if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
-            let mut headers = HashMap::new();
-            headers.insert("Content-Type".to_string(), 
-                response.content_type.clone());
             sentinel.send_response(200, "OK DOKIE",
-                    Some(headers),
+                    Some(response.headers),
                     response.data.as_slice());
             return;
         }
