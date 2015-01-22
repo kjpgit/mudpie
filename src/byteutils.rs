@@ -1,5 +1,12 @@
+//! Byte slice manipulation / searching routines, that
+//! really should be in the stdlib, in an optimized form.
+
+
+/// Return position of needle in haystack.
+///
+/// # Panics
 /// Needle must be not empty.
-/// This really needs to be in stdlib, and optimized
+///
 pub fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.len() == 0 {
         panic!("memmem: empty needle");
@@ -15,7 +22,9 @@ pub fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 
-/// Split src on a single byte
+/// Split src on a single byte.  
+///
+/// Note: Wrapper for splitn()
 pub fn split_bytes_on(src: &[u8], b: u8, max_splits: usize) -> Vec<&[u8]> {
     let is_match = |&:f: &u8| { (*f == b) };
     let mut ret = Vec::<&[u8]>::new();
@@ -26,7 +35,9 @@ pub fn split_bytes_on(src: &[u8], b: u8, max_splits: usize) -> Vec<&[u8]> {
 }
 
 
-/// Split src on '\r\n' 
+/// Split src on b"\r\n"
+///
+/// Note: a final element without a trailing \r\n will be ignored.
 pub fn split_bytes_on_crlf(src: &[u8]) -> Vec<&[u8]> {
     let mut start_idx = 0;
     let mut current_idx = 0;
@@ -42,7 +53,7 @@ pub fn split_bytes_on_crlf(src: &[u8]) -> Vec<&[u8]> {
 }
 
 
-// ugh, need stdlib lookup table
+/// Return hexadecimal value of byte, or None
 fn to_hexval(byte: u8) -> Option<u8> {
     match byte {
         b'A'...b'F' => Some(byte - b'A' + 10),
@@ -53,7 +64,7 @@ fn to_hexval(byte: u8) -> Option<u8> {
 }
 
 
-// ugh...slow bounds check
+/// Decode %XX hex escapes.
 pub fn percent_decode(input: &[u8]) -> Vec<u8> {
     let mut i = 0;
     let mut ret = Vec::new();
@@ -81,6 +92,7 @@ pub fn percent_decode(input: &[u8]) -> Vec<u8> {
     }
 }
 
+/// Remove leading spaces (b' ') from input, without copying
 pub fn lstrip(input: &[u8]) -> &[u8] {
     let mut pos = 0;
     for c in input.iter() {
@@ -117,6 +129,11 @@ fn test_split_bytes() {
     assert!(parts[0] == b"hello");
     assert!(parts[1] == b"world");
     assert!(parts[2] == b"dude");
+
+    let parts = split_bytes_on(a.as_slice(), b' ', 1);
+    assert!(parts.len() == 2);
+    assert!(parts[0] == b"hello");
+    assert!(parts[1] == b"world dude");
 }
 
 #[test]
@@ -132,7 +149,13 @@ fn test_split_crlf() {
 
 #[test]
 fn test_percent_decode() {
+    assert!(to_hexval(b'f').unwrap() == 15);
+    assert!(to_hexval(b'a').unwrap() == 10);
     assert!(to_hexval(b'F').unwrap() == 15);
+    assert!(to_hexval(b'A').unwrap() == 10);
+    assert!(to_hexval(b'0').unwrap() == 0);
+    assert!(to_hexval(b'3').unwrap() == 3);
+    assert!(to_hexval(b'9').unwrap() == 9);
     assert_eq!(percent_decode(b"/hi%20there%ff%00"), b"/hi there\xff\x00");
     assert_eq!(percent_decode(b"/%ff%00%"), b"/\xff\x00%");
     assert_eq!(percent_decode(b"%"), b"%");

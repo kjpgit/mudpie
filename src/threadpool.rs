@@ -1,4 +1,4 @@
-//! Simple generic thread pool
+//! Simple generic thread pool, with some improvements over TaskPool
 
 use std::sync::{Arc,Condvar,Mutex};
 use std::thread::Thread;

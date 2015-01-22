@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::ascii::OwnedAsciiExt;
-use utils;
+use byteutils;
 
 
 pub struct WebRequest { 
@@ -37,10 +37,10 @@ pub struct WebRequest {
 ///
 /// request_bytes: request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
-    let lines = utils::split_bytes_on_crlf(request_bytes);
+    let lines = byteutils::split_bytes_on_crlf(request_bytes);
 
     let request_line = lines[0];
-    let request_parts = utils::split_bytes_on(request_line, b' ', 2);
+    let request_parts = byteutils::split_bytes_on(request_line, b' ', 2);
     assert_eq!(request_parts.len(), 3);
 
     let method = request_parts[0].to_vec().into_ascii_lowercase();
@@ -63,7 +63,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         if path[0] != b'/' {
             panic!("absolute path required: {:?}", path);
         }
-        let parts = utils::split_bytes_on(path, b'?', 1); 
+        let parts = byteutils::split_bytes_on(path, b'?', 1); 
         if parts.len() > 1 {
             environ.insert(b"path".to_vec(), parts[0].to_vec());
             environ.insert(b"query_string".to_vec(), parts[1].to_vec());
@@ -75,7 +75,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
 
     // Also decode path into a normalized form.
     // Note: we are not normalizing '/./' or  '/../' components.
-    let path_decoded = utils::percent_decode(environ[b"path".to_vec()].as_slice());
+    let path_decoded = byteutils::percent_decode(environ[b"path".to_vec()].as_slice());
     let path_decoded_utf8 = String::from_utf8_lossy(
             path_decoded.as_slice()).into_owned();
 
@@ -87,7 +87,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         }
 
         // "Header: Value"
-        let header_parts = utils::split_bytes_on(*line, b':', 1);
+        let header_parts = byteutils::split_bytes_on(*line, b':', 1);
         if header_parts.len() != 2 {
             panic!("invalid header {:?}", &line);
         }
@@ -98,7 +98,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         let header_name = header_name.into_ascii_lowercase();
 
         // strip leading whitespace of header value
-        let header_value = utils::lstrip(header_parts[1]);
+        let header_value = byteutils::lstrip(header_parts[1]);
 
         environ.insert(header_name, header_value.to_vec());
     }

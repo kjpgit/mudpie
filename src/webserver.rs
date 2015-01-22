@@ -8,7 +8,7 @@ pub use request::WebRequest;
 
 use threadpool::ThreadPool;
 use request;
-use utils;
+use byteutils;
 
 /*
 
@@ -228,7 +228,7 @@ fn read_request(stream: &mut TcpStream) -> WebRequest {
         //println!("read size {}", size);
         if size > 0 {
             //println!("req_buffer {}", req_buffer.len());
-            let split_pos = utils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
+            let split_pos = byteutils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
                 println!("read raw request: {} bytes", split_pos);
