@@ -22,7 +22,7 @@ fn get_index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
-    page.push_str("<li><a href=\"/hello\">/hello</a> Shows Request Headers");
+    page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Shows Request Headers");
     page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
     page.push_str("</ul>");
     page = to_html(page);
@@ -35,8 +35,8 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
     page.push_str("<h1>Hello World!</h1>");
     page.push_str("<p>Unicode text: \u{03A6}\u{03A9}\u{20AC}\u{20AA}</p>");
 
-    page.push_str("<h3>Request Dump</h3>");
-    page.push_str("<ul>");
+    page.push_str("<pre>");
+    page.push_str("Request Environment:\n\n");
     let mut raw_environ = Vec::new();
     for (k, v) in req.environ.iter() {
         let k = String::from_utf8_lossy(k.as_slice()).into_owned();
@@ -45,9 +45,9 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
     }
     raw_environ.sort();
     for pair in raw_environ.iter() {
-        page.push_str(format!("<li>{}: {}", pair.0, pair.1).as_slice());
+        page.push_str(format!("{} = {}\n", pair.0, pair.1).as_slice());
     }
-    page.push_str("</ul>");
+    page.push_str("</pre>");
 
     page = to_html(page);
     return WebResponse::new_html(page);
