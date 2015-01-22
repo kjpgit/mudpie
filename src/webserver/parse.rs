@@ -2,30 +2,10 @@
 
 use std::collections::HashMap;
 use std::ascii::OwnedAsciiExt;
+
 use byteutils;
+use super::WebRequest;
 
-
-pub struct WebRequest { 
-    /// The CGI/WSGI like environment dictionary.
-    ///
-    /// Keys:
-    ///
-    /// * protocol = "http/1.0" or "http/1.1"
-    /// * method = "get", "head", "options", ... 
-    /// * path = "/full/path"
-    /// * query_string = "k=v&k2=v2" or ""
-    /// * http_xxx = "Header Value" 
-    ///
-    /// Note: protocol, method, and header names are lowercased,
-    /// since they are defined to be case-insensitive.
-    pub environ: HashMap<Vec<u8>, Vec<u8>>,
-
-    /// The percent decoded and utf8 (lossy) decoded path.
-    ///
-    /// For the raw path, see environ[path].  
-    /// Note: This does not normalize '/./' or  '/../' components.
-    pub path: String,
-}
 
 /*
    When making a request directly to an origin server, other than a

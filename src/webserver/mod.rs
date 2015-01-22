@@ -4,12 +4,10 @@ use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
-pub use self::request::WebRequest;
-
 use threadpool::ThreadPool;
 use byteutils;
 
-mod request;
+mod parse;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -61,26 +59,36 @@ impl WebResponse {
 }
 
 
-/*
+/// A request from a client
+///
+/// TODO: add the request body, or a way to fetch it.
+///
+pub struct WebRequest { 
+    /// The CGI/WSGI like environment dictionary.
+    ///
+    /// Keys:
+    ///
+    /// * protocol = "http/1.0" or "http/1.1"
+    /// * method = "get", "head", "options", ... 
+    /// * path = "/full/path"
+    /// * query_string = "k=v&k2=v2" or ""
+    /// * http_xxx = "Header Value" 
+    ///
+    /// Note: protocol, method, and header names are lowercased,
+    /// since they are defined to be case-insensitive.
+    pub environ: HashMap<Vec<u8>, Vec<u8>>,
 
-Main thread:
-- creates listening socket
-- starts worker threads
-- waits on worker_monitor condition var, to see when threads need respawn
-
-Worker threads:
-- clone the listening socket, so they can each call accept().  no context
-  switches needed.
-- passed the global configuraiton and dispatch map (read only)
-
-Note that for linux kernel >= 3.9, an optimization (for VERY high req/sec
-loads) is to use SO_REUSEPORT so each worker thread has a different socket.
-That would be a trivial change, and not affect this architecture.
-
-*/
+    /// The percent decoded and utf8 (lossy) decoded path.
+    ///
+    /// For the raw path, see environ[path].  
+    /// Note: This does not normalize '/./' or  '/../' components.
+    pub path: String,
+}
 
 
+/// The page handler function type 
 pub type PageFunction = fn(&WebRequest) -> WebResponse;
+
 
 struct DispatchRule {
     prefix: String,
@@ -97,7 +105,7 @@ struct WorkerPrivateContext {
 }
 
 
-
+/// Processes HTTP requests
 pub struct WebServer {
     rules: Option<Vec<DispatchRule>>,
     thread_pool: ThreadPool,
@@ -266,7 +274,7 @@ fn read_request(stream: &mut TcpStream) -> WebRequest {
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
                 println!("read raw request: {} bytes", split_pos);
-                return request::parse_request(req_buffer.as_slice());
+                return self::parse::parse_request(req_buffer.as_slice());
             }
         }
     }
