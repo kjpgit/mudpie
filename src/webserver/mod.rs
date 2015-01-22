@@ -1,16 +1,64 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
 pub use self::request::WebRequest;
-pub use self::response::WebResponse;
 
 use threadpool::ThreadPool;
 use byteutils;
 
 mod request;
-mod response;
+
+
+/// A response that will be sent to the client (code, headers, body)
+pub struct WebResponse {
+    code: i32,
+    status: String, 
+    data: Vec<u8>,
+    headers: HashMap<String, String>,
+}
+
+impl WebResponse {
+    /// Create a default response 
+    ///
+    /// The code and status are defaulted to 200 "OK", which can be changed
+    /// via the `set_code` method.  Headers and data are empty; see `set_data`
+    /// and `set_header`.
+    pub fn new() -> WebResponse {
+        return WebResponse {
+                code: 200,
+                status: "OK".to_string(),
+                data: Vec::new(),
+                headers: HashMap::new(),
+            };
+    }
+
+    /// Shortcut for creating a successful Unicode HTML response.
+    pub fn new_html(body: String) -> WebResponse {
+        let mut ret = WebResponse::new();   
+        ret.set_data(body.into_bytes());
+        ret.set_header("Content-Type", "text/html; charset=utf-8");
+        return ret;
+    }
+
+    /// Set the HTTP status code and message
+    pub fn set_code(&mut self, code: i32, status: String) {
+        self.code = code;
+        self.status = status;
+    }
+
+    /// Set the response body
+    pub fn set_data(&mut self, data: Vec<u8>) {
+        self.data = data;
+    }
+
+    /// Set a response header.  If it already exists, it will be overwritten.
+    pub fn set_header(&mut self, name: &str, value: &str) {
+        self.headers.insert(name.to_string(), value.to_string());
+    }
+}
 
 
 /*
