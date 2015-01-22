@@ -31,8 +31,15 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
 
     page.push_str("<h3>Request Headers</h3>");
     page.push_str("<ul>");
-    for (k, v) in req.headers.iter() {
-        page.push_str(format!("<li>{}: {}", k, v).as_slice());
+    let mut raw_environ = Vec::new();
+    for (k, v) in req.raw_environ.iter() {
+        let k = String::from_utf8_lossy(k.as_slice()).into_owned();
+        let v = String::from_utf8_lossy(v.as_slice()).into_owned();
+        raw_environ.push((k, v));
+    }
+    raw_environ.sort();
+    for pair in raw_environ.iter() {
+        page.push_str(format!("<li>{}: {}", pair.0, pair.1).as_slice());
     }
     page.push_str("</ul>");
 

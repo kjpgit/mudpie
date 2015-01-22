@@ -150,7 +150,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         started_response: false 
     };
     let req = read_request(&mut sentinel.stream);
-    println!("parsed request ok: path={}", req.path);
+    println!("parsed request ok");
     for rule in ctx.shared_ctx.rules.iter() {
         // todo: prefix
         if rule.prefix == req.path {

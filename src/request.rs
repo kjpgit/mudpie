@@ -1,30 +1,69 @@
 use std::collections::HashMap;
+use std::ascii::OwnedAsciiExt;
 use utils;
 
 pub struct WebRequest { 
-    pub path: String,
-    pub verb: String,
-    pub protocol: String,
-
-    // Note: header names (keys) are all *lower cased*
-    pub headers: HashMap<String, String>
+    // Header names, verb are lowercased
+    // * protocol = "http/1.0" or "http/1.1"
+    // * method = verb 
+    // * path = /full/path
+    // * query_string = "k=v&k2=v2" or ""
+    // * http_xxx = value (headers)
+    pub environ: HashMap<Vec<u8>, Vec<u8>>
 }
 
+/*
+   When making a request directly to an origin server, other than a
+   CONNECT or server-wide OPTIONS request (as detailed below), a client
+   MUST send only the absolute path and query components of the target
+   URI as the request-target.  If the target URI's path component is
+   empty, the client MUST send "/" as the path within the origin-form of
+   request-target.  A Host header field is also sent, as defined in
+   Section 5.4.
 
-// request_bytes: request including final \r\n\r\n
+   The asterisk-form of request-target is only used for a server-wide
+   OPTIONS request .
+*/
+
+/// request_bytes: request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     let lines = utils::split_bytes_on_crlf(request_bytes);
 
-    // "verb url/path protocol"
     let request_line = lines[0];
     let request_parts = utils::split_bytes_on(request_line, b' ', 2);
     assert_eq!(request_parts.len(), 3);
 
-    let verb = request_parts[0];
+    let verb = request_parts[0].to_vec().into_ascii_lowercase();
     let path = request_parts[1];
-    let protocol = request_parts[2];
+    let protocol = request_parts[2].to_vec().into_ascii_lowercase();
 
-    let mut headers = HashMap::<String, String>::new();
+    if protocol != b"http/1.0" && protocol != b"http/1.1" {
+        panic!("unknown protocol {:?}", protocol);
+    }
+
+    let mut environ = HashMap::<Vec<u8>, Vec<u8>>::new();
+    environ.insert(b"method".to_vec(), verb.to_vec());
+    environ.insert(b"protocol".to_vec(), protocol.to_vec());
+
+    assert!(path.len() > 0);
+    if verb == b"options" && path == b"*" {
+        environ.insert(b"path".to_vec(), path.to_vec());
+        environ.insert(b"query_string".to_vec(), b"".to_vec());
+    } else {
+        if path[0] != b'/' {
+            panic!("absolute path required: {:?}", path);
+        }
+        let parts = utils::split_bytes_on(path, b'?', 1); 
+        if parts.len() > 1 {
+            environ.insert(b"path".to_vec(), parts[0].to_vec());
+            environ.insert(b"query_string".to_vec(), parts[1].to_vec());
+        } else {
+            environ.insert(b"path".to_vec(), path.to_vec());
+            environ.insert(b"query_string".to_vec(), b"".to_vec());
+        }
+    }
+
+    // Now process the headers
     let mut first = true;
     for line in lines.iter() {
         // ignore request line.  todo: more idomatic way?
@@ -39,17 +78,18 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
 
         // "Header: Value"
         let header_parts = utils::split_bytes_on(*line, b':', 1);
-        assert_eq!(header_parts.len(), 2);
-        let header_name = String::from_utf8_lossy(header_parts[0]).into_owned();
-        let header_value = String::from_utf8_lossy(header_parts[1]).into_owned();
-        headers.insert(header_name, header_value);
+        if header_parts.len() != 2 {
+            panic!("invalid header {:?}", &line);
+        }
+        let mut header_name = b"http_".to_vec();
+        header_name.extend(header_parts[0].iter().cloned());
+        let header_name = header_name.into_ascii_lowercase();
+        let header_value: Vec<u8> = header_parts[1].to_vec();
+        environ.insert(header_name, header_value);
     }
 
     return WebRequest {
-        path: String::from_utf8(path.to_vec()).unwrap(),
-        verb: String::from_utf8(verb.to_vec()).unwrap(),
-        protocol: String::from_utf8(protocol.to_vec()).unwrap(),
-        headers: headers
+        environ: environ
     };
 }
 
