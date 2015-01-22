@@ -6,17 +6,24 @@ use byteutils;
 
 
 pub struct WebRequest { 
-    // Note: protocol, method, and header names are lowercased,
-    // since they are defined to be case-insensitive.
-    // Keys:
-    // * protocol = "http/1.0" or "http/1.1"
-    // * method = "get", "head", "options", ... 
-    // * path = "/full/path"
-    // * query_string = "k=v&k2=v2" or ""
-    // * http_xxx = "Header Value" 
+    /// The CGI/WSGI like environment dictionary.
+    ///
+    /// Keys:
+    ///
+    /// * protocol = "http/1.0" or "http/1.1"
+    /// * method = "get", "head", "options", ... 
+    /// * path = "/full/path"
+    /// * query_string = "k=v&k2=v2" or ""
+    /// * http_xxx = "Header Value" 
+    ///
+    /// Note: protocol, method, and header names are lowercased,
+    /// since they are defined to be case-insensitive.
     pub environ: HashMap<Vec<u8>, Vec<u8>>,
 
-    // Unicode path: percent decoded and utf8 (lossy) decoded 
+    /// The percent decoded and utf8 (lossy) decoded path.
+    ///
+    /// For the raw path, see environ[path].  
+    /// Note: This does not normalize '/./' or  '/../' components.
     pub path: String,
 }
 
@@ -74,7 +81,6 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     }
 
     // Also decode path into a normalized form.
-    // Note: we are not normalizing '/./' or  '/../' components.
     let path_decoded = byteutils::percent_decode(environ[b"path".to_vec()].as_slice());
     let path_decoded_utf8 = String::from_utf8_lossy(
             path_decoded.as_slice()).into_owned();
