@@ -10,7 +10,7 @@ awesome Rust language.  It is inspired by python's lean and elegant WSGI
 protocol.
 
 {app} is written in 100% safe Rust code (no unsafe blocks), so it should
-be quite reliable.  
+be quite reliable.   It has no dependencies.
 
 {app} is not intended to be a front end server.  A front end, like nginx,
 typically handles SSL termination and request/response buffering for slow
