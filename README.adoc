@@ -5,20 +5,24 @@
 
 == Overview
 
-{app} is a multi-threaded HTTP application server for the amazingly awesome
-Rust language.  It is inspired by python's lean and elegant WSGI protocol.
+{app} is a simple multi-threaded HTTP application server for the amazingly
+awesome Rust language.  It is inspired by python's lean and elegant WSGI
+protocol.
 
 {app} is written in 100% safe Rust code (no unsafe blocks), so it should
 be quite reliable.  
 
 {app} is not intended to be a front end server.  A front end, like nginx,
-handles SSL termination and request/response buffering for slow clients, and
-is typically event-driven for scalability.  
+typically handles SSL termination and request/response buffering for slow
+clients, and is typically event-driven for scalability.  
 
 
-== Examples
+== Try it out
 
-Do +cargo run+ to start a toy server, running on +localhost:8000+.
+Use +cargo run+ to start the included demo server, which displays some example
+pages you can visit at  +http://localhost:8000/+.
+
+== Example Code
 
 [source,rust]
 ----
@@ -41,7 +45,6 @@ fn main() {
 
 
 == Implementation
-
 
 {app} has one main thread and N worker threads.  The main thread's only job is
 to monitor the worker threads.  A higher level watchdog process, like systemd,
