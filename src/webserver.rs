@@ -150,11 +150,10 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         started_response: false 
     };
     let req = read_request(&mut sentinel.stream);
-    let path = "/hello";
-    println!("parsed request ok: path={}", path);
+    println!("parsed request ok: path={}", req.path);
     for rule in ctx.shared_ctx.rules.iter() {
         // todo: prefix
-        if rule.prefix == path {
+        if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
             println!("sending response");
             sentinel.send_response(200, "OK DOKIE",
@@ -162,7 +161,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             return;
         }
     }
-    println!("no rule matched {}", path);
+    println!("no rule matched {}", req.path);
     sentinel.send_response(404, "Not Found, Bro", 
         b"Resource not found");
 }

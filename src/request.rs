@@ -9,7 +9,10 @@ pub struct WebRequest {
     // * path = /full/path
     // * query_string = "k=v&k2=v2" or ""
     // * http_xxx = value (headers)
-    pub environ: HashMap<Vec<u8>, Vec<u8>>
+    pub environ: HashMap<Vec<u8>, Vec<u8>>,
+
+    // Unicode - utf8 decoded 
+    pub path: String,
 }
 
 /*
@@ -88,8 +91,12 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         environ.insert(header_name, header_value);
     }
 
+    let path_decoded = utils::percent_decode(environ[b"path".to_vec()].as_slice());
+    
+
     return WebRequest {
-        environ: environ
+        environ: environ,
+        path: String::from_utf8_lossy(path_decoded.as_slice()).into_owned(),
     };
 }
 
