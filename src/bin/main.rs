@@ -6,6 +6,18 @@ use mudpie::{WebServer, WebRequest, WebResponse};
 // Demonstrates use of the mudpie library
 
 
+// Add html and body tags
+fn to_html(input: String) -> String {
+    let mut page = String::new();
+    page.push_str("<html>");
+    page.push_str("<body>");
+    page.push_str(input.as_slice());
+    page.push_str("</body>");
+    page.push_str("</html>");
+    return page;
+}
+
+
 fn get_index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Available Resources</h1>");
@@ -13,6 +25,7 @@ fn get_index_page(_req: &WebRequest) -> WebResponse {
     page.push_str("<li><a href=\"/hello\">/hello</a> Shows Request Headers");
     page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
     page.push_str("</ul>");
+    page = to_html(page);
     return WebResponse::new_html(page);
 }
 
@@ -36,6 +49,7 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
     }
     page.push_str("</ul>");
 
+    page = to_html(page);
     return WebResponse::new_html(page);
 }
 
