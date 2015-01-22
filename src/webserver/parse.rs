@@ -92,6 +92,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     return WebRequest {
         environ: environ,
         path: path_decoded_utf8,
+        _force_private: (),
     };
 }
 

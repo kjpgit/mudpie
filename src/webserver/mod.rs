@@ -83,6 +83,8 @@ pub struct WebRequest {
     /// For the raw path, see environ[path].  
     /// Note: This does not normalize '/./' or  '/../' components.
     pub path: String,
+
+    _force_private: (),
 }
 
 
