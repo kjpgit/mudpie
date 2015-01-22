@@ -1,15 +1,17 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
-pub use request::WebRequest;
-pub use response::WebResponse;
+pub use self::request::WebRequest;
+pub use self::response::WebResponse;
 
 use threadpool::ThreadPool;
-use request;
 use byteutils;
+
+mod request;
+mod response;
+
 
 /*
 
@@ -140,15 +142,17 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         // todo: prefix
         if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
-            sentinel.send_response(200, "OK DOKIE",
-                    Some(response.headers),
-                    response.data.as_slice());
+            sentinel.send_response(&response);
             return;
         }
     }
+
     println!("no rule matched {}", req.path);
-    sentinel.send_response(404, "Not Found, Bro", None,
-        b"Resource not found");
+    let mut response = WebResponse::new();
+    response.code = 404;
+    response.status = "Not Found, Bro".to_string();
+    response.set_data(b"Error 404: Resource not found".to_vec());
+    sentinel.send_response(&response);
 }
 
 struct HTTPContext {
@@ -157,24 +161,22 @@ struct HTTPContext {
 }
 
 impl HTTPContext {
-    fn send_response(&mut self, code: i32, 
-            status: &str, 
-            headers: Option<HashMap<String, String>>,
-             body: &[u8]) {
+    fn send_response(&mut self, response: &WebResponse) {
         // todo: don't panic if logging fails?
         println!("sending response: code={}, body_length={}",
-            code, body.len());
+            response.code, response.data.len());
+
         let mut resp = String::new();
-        resp.push_str(format!("HTTP/1.1 {} {}\r\n", code, status).as_slice());
+        resp.push_str(format!("HTTP/1.1 {} {}\r\n", 
+            response.code, 
+            response.status).as_slice());
         resp.push_str("Connection: close\r\n");
 
-        if headers.is_some() {
-            for (k, v) in headers.unwrap().iter() {
-                resp.push_str(k.as_slice());
-                resp.push_str(": ");
-                resp.push_str(v.as_slice());
-                resp.push_str("\r\n");
-            }
+        for (k, v) in response.headers.iter() {
+            resp.push_str(k.as_slice());
+            resp.push_str(": ");
+            resp.push_str(v.as_slice());
+            resp.push_str("\r\n");
         }
 
         resp.push_str("\r\n");
@@ -183,8 +185,8 @@ impl HTTPContext {
         // We *don't* want to panic if we're already in a panic, and
         // sending the internal error message.
         self.started_response = true;
-        let _ = self.stream.write_str(resp.as_slice());
-        let _ = self.stream.write(body);
+        let _ioret = self.stream.write_str(resp.as_slice());
+        let _ioret = self.stream.write(response.data.as_slice());
     }
 }
 
@@ -192,8 +194,11 @@ impl Drop for HTTPContext {
     /// If we paniced and/or are about to die, make sure client gets a 500
     fn drop(&mut self) {
         if !self.started_response {
-            self.send_response(500, "Uh oh :-(", None,
-                b"Internal Error");
+            let mut resp = WebResponse::new();
+            resp.code = 500;
+            resp.status = "Uh oh :-(".to_string();
+            resp.set_data(b"Error 500: Internal Error".to_vec());
+            self.send_response(&resp);
         }
     }
 }

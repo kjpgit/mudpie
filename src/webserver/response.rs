@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
 pub struct WebResponse {
+    pub code: i32,
+    pub status: String, 
     pub data: Vec<u8>,
     pub headers: HashMap<String, String>,
 }
@@ -8,6 +10,8 @@ pub struct WebResponse {
 impl WebResponse {
     pub fn new() -> WebResponse {
         return WebResponse {
+                code: 200,
+                status: "OK".to_string(),
                 data: Vec::new(),
                 headers: HashMap::new(),
             };
