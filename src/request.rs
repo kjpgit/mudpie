@@ -1,17 +1,22 @@
+//! Low level parsing of an HTTP Request (path and headers)
+
 use std::collections::HashMap;
 use std::ascii::OwnedAsciiExt;
 use utils;
 
+
 pub struct WebRequest { 
-    // Header names, verb are lowercased
+    // Note: protocol, method, and header names are lowercased,
+    // since they are defined to be case-insensitive.
+    // Keys:
     // * protocol = "http/1.0" or "http/1.1"
-    // * method = verb 
-    // * path = /full/path
+    // * method = "get", "head", "options", ... 
+    // * path = "/full/path"
     // * query_string = "k=v&k2=v2" or ""
-    // * http_xxx = value (headers)
+    // * http_xxx = "Header Value" 
     pub environ: HashMap<Vec<u8>, Vec<u8>>,
 
-    // Unicode - utf8 decoded 
+    // Unicode path: percent decoded and utf8 (lossy) decoded 
     pub path: String,
 }
 
@@ -28,6 +33,8 @@ pub struct WebRequest {
    OPTIONS request .
 */
 
+/// Parse a request.  Must end with \r\n\r\n
+///
 /// request_bytes: request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     let lines = utils::split_bytes_on_crlf(request_bytes);
@@ -36,7 +43,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     let request_parts = utils::split_bytes_on(request_line, b' ', 2);
     assert_eq!(request_parts.len(), 3);
 
-    let verb = request_parts[0].to_vec().into_ascii_lowercase();
+    let method = request_parts[0].to_vec().into_ascii_lowercase();
     let path = request_parts[1];
     let protocol = request_parts[2].to_vec().into_ascii_lowercase();
 
@@ -45,11 +52,11 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
     }
 
     let mut environ = HashMap::<Vec<u8>, Vec<u8>>::new();
-    environ.insert(b"method".to_vec(), verb.to_vec());
+    environ.insert(b"method".to_vec(), method.to_vec());
     environ.insert(b"protocol".to_vec(), protocol.to_vec());
 
     assert!(path.len() > 0);
-    if verb == b"options" && path == b"*" {
+    if method == b"options" && path == b"*" {
         environ.insert(b"path".to_vec(), path.to_vec());
         environ.insert(b"query_string".to_vec(), b"".to_vec());
     } else {
@@ -65,6 +72,12 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
             environ.insert(b"query_string".to_vec(), b"".to_vec());
         }
     }
+
+    // Also decode path into a normalized form.
+    // Note: we are not normalizing '/./' or  '/../' components.
+    let path_decoded = utils::percent_decode(environ[b"path".to_vec()].as_slice());
+    let path_decoded_utf8 = String::from_utf8_lossy(
+            path_decoded.as_slice()).into_owned();
 
     // Now process the headers
     let mut first = true;
@@ -86,17 +99,15 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         }
         let mut header_name = b"http_".to_vec();
         header_name.extend(header_parts[0].iter().cloned());
+        // lowercase the header name
         let header_name = header_name.into_ascii_lowercase();
-        let header_value: Vec<u8> = header_parts[1].to_vec();
+        let header_value = header_parts[1].to_vec();
         environ.insert(header_name, header_value);
     }
 
-    let path_decoded = utils::percent_decode(environ[b"path".to_vec()].as_slice());
-    
-
     return WebRequest {
         environ: environ,
-        path: String::from_utf8_lossy(path_decoded.as_slice()).into_owned(),
+        path: path_decoded_utf8,
     };
 }
 
