@@ -97,7 +97,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
 fn test_request_1() {
     let s = b"GET /foo%20bar HTTP/1.0\r\nFoo: Bar\r\nA B C: D E F\r\n\r\n";
     let r = parse_request(s);
-    assert_eq!(r.verb, "GET");
-    assert_eq!(r.path, "/foo%20bar");
-    assert_eq!(r.protocol, "HTTP/1.0");
+    assert_eq!(r.environ[b"method".to_vec()], b"get".to_vec());
+    assert_eq!(r.environ[b"path".to_vec()], b"/foo%20bar".to_vec());
+    assert_eq!(r.environ[b"protocol".to_vec()], b"http/1.0".to_vec());
 }

@@ -42,6 +42,46 @@ pub fn split_bytes_on_crlf(src: &[u8]) -> Vec<&[u8]> {
 }
 
 
+// ugh, need stdlib lookup table
+fn to_hexval(byte: u8) -> Option<u8> {
+    match byte {
+        b'A'...b'F' => Some(byte - b'A' + 10),
+        b'a'...b'f' => Some(byte - b'a' + 10),
+        b'0'...b'9' => Some(byte - b'0'),
+        _ => None
+    }
+}
+
+
+// ugh...slow bounds check
+pub fn percent_decode(input: &[u8]) -> Vec<u8> {
+    let mut i = 0;
+    let mut ret = Vec::new();
+    loop {
+        if i == input.len() {
+            return ret;
+        }
+        if input[i] == b'%' && i+2 < input.len() {
+            let l = to_hexval(input[i+1]);
+            let r = to_hexval(input[i+2]);
+            if l.is_some() && r.is_some() {
+                let l = l.unwrap();
+                let r = r.unwrap();
+                let val = (l << 4) + r;
+                // encoded char
+                ret.push(val);
+                i += 3;
+                continue;
+            }
+        }
+
+        // not encoded
+        ret.push(input[i]);
+        i += 1;
+    }
+}
+
+
 #[test]
 fn test_memmem() {
     let a = b"hello world dude";
@@ -76,4 +116,14 @@ fn test_split_crlf() {
     assert!(parts[1] == b"dude");
     assert!(parts[2] == b"");
     assert!(parts[3] == b"last one");
+}
+
+#[test]
+fn test_percent_decode() {
+    assert!(to_hexval(b'F').unwrap() == 15);
+    assert_eq!(percent_decode(b"/hi%20there%ff%00"), b"/hi there\xff\x00");
+    assert_eq!(percent_decode(b"/%ff%00%"), b"/\xff\x00%");
+    assert_eq!(percent_decode(b"%"), b"%");
+    assert_eq!(percent_decode(b"%%"), b"%%");
+    assert_eq!(percent_decode(b"%%%"), b"%%%");
 }
