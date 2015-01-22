@@ -80,13 +80,7 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
             path_decoded.as_slice()).into_owned();
 
     // Now process the headers
-    let mut first = true;
-    for line in lines.iter() {
-        // ignore request line.  todo: more idomatic way?
-        if first {
-            first = false;
-            continue;
-        }
+    for line in lines.iter().skip(1) {
         if line.len() == 0 {
             // The last part (\r\n\r\n) appears as an empty header
             continue;
