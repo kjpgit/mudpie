@@ -50,7 +50,10 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
     page.push_str("</pre>");
 
     page = to_html(page);
-    return WebResponse::new_html(page);
+
+    let mut ret = WebResponse::new_html(page);
+    ret.set_header("x-mudpie-example-header", "fi fi fo fum");
+    return ret;
 }
 
 
