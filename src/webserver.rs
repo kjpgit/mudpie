@@ -156,7 +156,6 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         // todo: prefix
         if rule.prefix == req.path {
             let response = (rule.page_fn)(&req);
-            println!("sending response");
             let mut headers = HashMap::new();
             headers.insert("Content-Type".to_string(), 
                 response.content_type.clone());
@@ -181,6 +180,9 @@ impl HTTPContext {
             status: &str, 
             headers: Option<HashMap<String, String>>,
              body: &[u8]) {
+        // todo: don't panic if logging fails?
+        println!("sending response: code={}, body_length={}",
+            code, body.len());
         let mut resp = String::new();
         resp.push_str(format!("HTTP/1.1 {} {}\r\n", code, status).as_slice());
         resp.push_str("Connection: close\r\n");
@@ -216,14 +218,15 @@ impl Drop for HTTPContext {
 }
 
 fn read_request(stream: &mut TcpStream) -> WebRequest {
-    let mut req_buffer = Vec::<u8>::new();
-    let mut chunk_buffer = [0; 1024];  // todo: move to heap
+    // Read this amount at a time, if we want to set a max request size.
+    let chunk_size = 4096;
+    let mut req_buffer = Vec::<u8>::with_capacity(chunk_size);
     loop {
-        let ret = stream.read(&mut chunk_buffer);
-        let size = ret.unwrap();
+        let ioret = stream.push(chunk_size, &mut req_buffer);
+        // todo: err handle
+        let size = ioret.unwrap();
         //println!("read size {}", size);
         if size > 0 {
-            req_buffer.extend(chunk_buffer.slice(0, size).iter().cloned());
             //println!("req_buffer {}", req_buffer.len());
             let split_pos = utils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
             if split_pos.is_some() {
