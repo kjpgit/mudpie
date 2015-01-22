@@ -81,6 +81,18 @@ pub fn percent_decode(input: &[u8]) -> Vec<u8> {
     }
 }
 
+pub fn lstrip(input: &[u8]) -> &[u8] {
+    let mut pos = 0;
+    for c in input.iter() {
+        if *c != b' ' {
+            break;
+        }
+        pos += 1;
+    }
+    return input.slice_from(pos);
+
+}
+
 
 #[test]
 fn test_memmem() {
@@ -126,4 +138,12 @@ fn test_percent_decode() {
     assert_eq!(percent_decode(b"%"), b"%");
     assert_eq!(percent_decode(b"%%"), b"%%");
     assert_eq!(percent_decode(b"%%%"), b"%%%");
+}
+
+#[test]
+fn test_lstrip() {
+    assert_eq!(lstrip(b"  there now "), b"there now ");
+    assert_eq!(lstrip(b"here now "), b"here now ");
+    assert_eq!(lstrip(b"   "), b"");
+    assert_eq!(lstrip(b""), b"");
 }

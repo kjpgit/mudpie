@@ -97,12 +97,16 @@ pub fn parse_request(request_bytes: &[u8]) -> WebRequest {
         if header_parts.len() != 2 {
             panic!("invalid header {:?}", &line);
         }
+
         let mut header_name = b"http_".to_vec();
         header_name.extend(header_parts[0].iter().cloned());
         // lowercase the header name
         let header_name = header_name.into_ascii_lowercase();
-        let header_value = header_parts[1].to_vec();
-        environ.insert(header_name, header_value);
+
+        // strip leading whitespace of header value
+        let header_value = utils::lstrip(header_parts[1]);
+
+        environ.insert(header_name, header_value.to_vec());
     }
 
     return WebRequest {
@@ -118,4 +122,9 @@ fn test_request_1() {
     assert_eq!(r.environ[b"method".to_vec()], b"get".to_vec());
     assert_eq!(r.environ[b"path".to_vec()], b"/foo%20bar".to_vec());
     assert_eq!(r.environ[b"protocol".to_vec()], b"http/1.0".to_vec());
+
+    assert_eq!(r.environ[b"http_foo".to_vec()].as_slice(), b"Bar");
+    assert_eq!(r.environ[b"http_a b c".to_vec()].as_slice(), b"D E F");
+
+    assert_eq!(r.path, "/foo bar");
 }
