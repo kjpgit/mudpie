@@ -19,7 +19,7 @@ enum ParseError {
 
 
 /// Parse a HTTP 1.0/1.1 request.  Must end with \r\n\r\n, which is typically
-/// what your recv() loop waits for.
+/// what your recv() loop waits for.  (Note: this does not include the body)
 ///
 /// request_bytes: raw request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
