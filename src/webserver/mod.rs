@@ -244,6 +244,8 @@ impl HTTPContext {
             response.code, 
             response.status).as_slice());
         resp.push_str("Connection: close\r\n");
+        resp.push_str(format!("Content-length: {}\r\n", 
+                response.data.len()).as_slice());
 
         for (k, v) in response.headers.iter() {
             resp.push_str(k.as_slice());
