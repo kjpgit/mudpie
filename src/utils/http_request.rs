@@ -3,8 +3,12 @@
 use std::collections::HashMap;
 use std::ascii::OwnedAsciiExt; // the magic for into_ascii_lowercase
 
-use byteutils;
-use super::WebRequest;
+use super::byteutils;
+
+pub struct Request {
+    pub environ: HashMap<Vec<u8>, Vec<u8>>,
+    pub path: String,
+}
 
 
 #[derive(Show)]
@@ -22,7 +26,7 @@ enum ParseError {
 /// what your recv() loop waits for.  (Note: this does not include the body)
 ///
 /// request_bytes: raw request including final \r\n\r\n
-pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
+pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     /*
     http://tools.ietf.org/html/rfc7230#section-5.3.1
 
@@ -122,21 +126,21 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
         environ.insert(nice_header_name, header_value.to_vec());
     }
 
-    return Ok(WebRequest {
+    return Ok(Request {
         environ: environ,
         path: path_decoded_utf8,
-        _force_private: (),
     });
 }
+
 
 #[test]
 fn test_request_ok() {
     let s = b"GET / HTTP/1.0\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert!(r.is_ok());
 
     let s = b"GET /foo%20bar HTTP/1.0\r\nFoo: Bar\r\nA B C:   D E F  \r\n\r\n";
-    let r = parse_request(s).ok().unwrap();
+    let r = parse(s).ok().unwrap();
     assert_eq!(r.environ[b"method".to_vec()], b"get".to_vec());
     assert_eq!(r.environ[b"path".to_vec()], b"/foo%20bar".to_vec());
     assert_eq!(r.environ[b"protocol".to_vec()], b"http/1.0".to_vec());
@@ -147,41 +151,41 @@ fn test_request_ok() {
     assert_eq!(r.path, "/foo bar");
 
     let s = b"OPTIONS * HTTP/1.1\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert!(r.is_ok());
 }
 
 #[test]
 fn test_request_bad() {
     let s = b"GET /\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
 
     let s = b"GET  HTTP/1.0\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
 
     let s = b"     \r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
 
     let s = b"GET / HTTP/3.0\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::BadVersion);
 
     let s = b"GET * HTTP/1.0\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidAbsolutePath);
 
     let s = b"GET / HTTP/1.0\r\nABC DEF\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderSeparator);
 
     let s = b"GET / HTTP/1.0\r\nABC : DEF\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderWhitespace);
 
     let s = b"GET / HTTP/1.0\r\n ABC: DEF\r\n\r\n";
-    let r = parse_request(s);
+    let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderWhitespace);
 }

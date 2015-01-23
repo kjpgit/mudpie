@@ -4,10 +4,9 @@ use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
-use threadpool::ThreadPool;
-use byteutils;
-
-mod parse;
+use utils::threadpool::ThreadPool;
+use utils::byteutils;
+use utils::http_request;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -294,9 +293,15 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
                 println!("read raw request: {} bytes", split_pos);
-                let req = self::parse::parse_request(req_buffer.as_slice());
+                let req = http_request::parse(req_buffer.as_slice());
                 if req.is_ok() {
-                    return Some(req.ok().unwrap());
+                    let req = req.ok().unwrap();
+                    let ret = WebRequest {
+                        environ: req.environ,
+                        path: req.path,
+                        _force_private: ()
+                    };
+                    return Some(ret);
                 } else {
                     return None;
                 }
