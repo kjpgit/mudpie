@@ -195,6 +195,15 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         started_response: false 
     };
     let req = read_request(&mut sentinel.stream);
+    if req.is_none() {
+        let mut resp = WebResponse::new();
+        resp.code = 400;
+        resp.status = "Bad Request".to_string();
+        resp.set_data(b"Error 400: Bad Request".to_vec());
+        sentinel.send_response(&resp);
+        return;
+    }
+    let req = req.unwrap();
     println!("parsed request ok: path={}", req.path);
     for rule in ctx.shared_ctx.rules.iter() {
         // todo: prefix
@@ -261,7 +270,7 @@ impl Drop for HTTPContext {
     }
 }
 
-fn read_request(stream: &mut TcpStream) -> WebRequest {
+fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
     // Read this amount at a time, if we want to set a max request size.
     let chunk_size = 4096;
     let mut req_buffer = Vec::<u8>::with_capacity(chunk_size);
@@ -276,7 +285,12 @@ fn read_request(stream: &mut TcpStream) -> WebRequest {
             if split_pos.is_some() {
                 let split_pos = split_pos.unwrap();
                 println!("read raw request: {} bytes", split_pos);
-                return self::parse::parse_request(req_buffer.as_slice());
+                let req = self::parse::parse_request(req_buffer.as_slice());
+                if req.is_ok() {
+                    return Some(req.ok().unwrap());
+                } else {
+                    return None;
+                }
             }
         }
     }

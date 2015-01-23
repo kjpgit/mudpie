@@ -92,6 +92,12 @@ pub fn percent_decode(input: &[u8]) -> Vec<u8> {
     }
 }
 
+
+pub fn strip(input: &[u8]) -> &[u8] {
+    return lstrip(rstrip(input));
+}
+
+
 /// Remove leading spaces (b' ') from input, without copying
 pub fn lstrip(input: &[u8]) -> &[u8] {
     let mut pos = 0;
@@ -102,7 +108,19 @@ pub fn lstrip(input: &[u8]) -> &[u8] {
         pos += 1;
     }
     return input.slice_from(pos);
+}
 
+
+/// Remove trailing spaces (b' ') from input, without copying
+pub fn rstrip(input: &[u8]) -> &[u8] {
+    let mut ret = input;
+    while ret.len() > 0 {
+        if ret[ret.len() - 1] != b' ' {
+            break;
+        }
+        ret = ret.slice_to(ret.len() - 1);
+    }
+    return ret;
 }
 
 
@@ -172,4 +190,13 @@ fn test_lstrip() {
     assert_eq!(lstrip(b"here now "), b"here now ");
     assert_eq!(lstrip(b"   "), b"");
     assert_eq!(lstrip(b""), b"");
+}
+
+
+#[test]
+fn test_rstrip() {
+    assert_eq!(rstrip(b"  there now "), b"  there now");
+    assert_eq!(rstrip(b" here now"), b" here now");
+    assert_eq!(rstrip(b"   "), b"");
+    assert_eq!(rstrip(b""), b"");
 }
