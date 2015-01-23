@@ -47,6 +47,8 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     Header line folding is obsolete and must be rejected.  (yay!)
         
     */
+    assert!(request_bytes.ends_with(b"\r\n\r\n"));
+
     let lines = byteutils::split_bytes_on_crlf(request_bytes);
 
     let request_line = lines[0];
@@ -59,6 +61,11 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     let path = request_parts[1];
     let protocol = request_parts[2].to_vec().into_ascii_lowercase();
 
+    // Split doesn't coalesce spaces for us
+    if method.len() == 0 || path.len() == 0 || protocol.len() == 0 {
+        return Err(ParseError::BadRequestLine);
+    }
+
     if protocol != b"http/1.0" && protocol != b"http/1.1" {
         return Err(ParseError::BadVersion);
     }
@@ -66,9 +73,6 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     let mut environ = HashMap::<Vec<u8>, Vec<u8>>::new();
     environ.insert(b"method".to_vec(), method.to_vec());
     environ.insert(b"protocol".to_vec(), protocol.to_vec());
-
-    // shouldn't be possible from split
-    assert!(path.len() > 0);
 
     if method == b"options" && path == b"*" {
         environ.insert(b"path".to_vec(), path.to_vec());
@@ -158,6 +162,14 @@ fn test_request_bad() {
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
 
+    let s = b"GET  HTTP/1.0\r\n\r\n";
+    let r = parse_request(s);
+    assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
+
+    let s = b"     \r\n\r\n";
+    let r = parse_request(s);
+    assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
+
     let s = b"GET / HTTP/3.0\r\n\r\n";
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::BadVersion);
@@ -166,15 +178,15 @@ fn test_request_bad() {
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidAbsolutePath);
 
-    let s = b"GET / HTTP/1.0\r\nABC DEF\r\n";
+    let s = b"GET / HTTP/1.0\r\nABC DEF\r\n\r\n";
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderSeparator);
 
-    let s = b"GET / HTTP/1.0\r\nABC : DEF\r\n";
+    let s = b"GET / HTTP/1.0\r\nABC : DEF\r\n\r\n";
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderWhitespace);
 
-    let s = b"GET / HTTP/1.0\r\n ABC: DEF\r\n";
+    let s = b"GET / HTTP/1.0\r\n ABC: DEF\r\n\r\n";
     let r = parse_request(s);
     assert_eq!(r.err().unwrap(), ParseError::InvalidHeaderWhitespace);
 }
