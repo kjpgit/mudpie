@@ -109,6 +109,7 @@ struct WorkerPrivateContext {
 
 /// Processes HTTP requests
 pub struct WebServer {
+    nr_threads: i32,
     rules: Option<Vec<DispatchRule>>,
     thread_pool: ThreadPool,
     worker_shared_context: Option<Arc<WorkerSharedContext>>,
@@ -117,6 +118,7 @@ pub struct WebServer {
 impl WebServer {
     pub fn new() -> WebServer {
         let ret = WebServer{
+                nr_threads: 10,
                 rules: Some(Vec::new()),
                 thread_pool: ThreadPool::new(),
                 worker_shared_context: None,
@@ -124,6 +126,13 @@ impl WebServer {
         return ret;
     }
 
+    /// Set number of worker threads.  Must be > 0.
+    pub fn set_num_threads(&mut self, n: i32) {
+        assert!(n > 0);
+        self.nr_threads = n;
+    }
+
+    /// Add an exact match rule
     pub fn add_path(&mut self, path: &str, page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
@@ -133,9 +142,9 @@ impl WebServer {
         fn_map.push(rule);
     }
 
-    /// Starts `num_threads` worker threads.  If any fail, they will be
-    /// respawned.  This function does not return.
-    pub fn run(&mut self, address: &str, port: i32, num_threads: i32) {
+    /// Starts worker threads and enters supervisor loop.  If any worker
+    /// threads fail, they will be respawned.  This function does not return.
+    pub fn run(&mut self, address: &str, port: i32) {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
         let listener = TcpListener::bind(addr.as_slice());
@@ -150,8 +159,8 @@ impl WebServer {
         };
         self.worker_shared_context = Some(Arc::new(ctx));
 
-        println!("starting {} worker threads", num_threads);
-        for _ in range(0, num_threads) {
+        println!("starting {} worker threads", self.nr_threads);
+        for _ in range(0, self.nr_threads) {
             self.start_new_worker();
         }
 

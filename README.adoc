@@ -38,8 +38,7 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
 fn main() {
     let mut svr = WebServer::new();
     svr.add_path("/hello", get_hello_page);
-    // Run with 10 worker threads
-    svr.run("127.0.0.1", 8000, 10);
+    svr.run("127.0.0.1", 8000);
 }
 ----
 

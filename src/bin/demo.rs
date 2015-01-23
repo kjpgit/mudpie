@@ -71,6 +71,6 @@ fn main() {
     svr.add_path("/hello", get_hello_page);
     svr.add_path("/panic", get_panic_page);
 
-    // Run with 10 worker threads
-    svr.run("127.0.0.1", 8000, 10);
+    // Start worker threads and serve content
+    svr.run("127.0.0.1", 8000);
 }
