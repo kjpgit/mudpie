@@ -41,9 +41,9 @@ impl WebResponse {
     }
 
     /// Set the HTTP status code and message
-    pub fn set_code(&mut self, code: i32, status: String) {
+    pub fn set_code(&mut self, code: i32, status: &str) {
         self.code = code;
-        self.status = status;
+        self.status = status.to_string();
     }
 
     /// Set the response body
@@ -205,8 +205,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     let req = read_request(&mut sentinel.stream);
     if req.is_none() {
         let mut resp = WebResponse::new();
-        resp.code = 400;
-        resp.status = "Bad Request".to_string();
+        resp.set_code(400, "Bad Request");
         resp.set_data(b"Error 400: Bad Request".to_vec());
         sentinel.send_response(&resp);
         return;
@@ -224,8 +223,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
 
     println!("no rule matched {}", req.path);
     let mut response = WebResponse::new();
-    response.code = 404;
-    response.status = "Not Found, Bro".to_string();
+    response.set_code(404, "Not Found, Bro");
     response.set_data(b"Error 404: Resource not found".to_vec());
     sentinel.send_response(&response);
 }
@@ -270,8 +268,7 @@ impl Drop for HTTPContext {
     fn drop(&mut self) {
         if !self.started_response {
             let mut resp = WebResponse::new();
-            resp.code = 500;
-            resp.status = "Uh oh :-(".to_string();
+            resp.set_code(500, "Uh oh :-(");
             resp.set_data(b"Error 500: Internal Error".to_vec());
             self.send_response(&resp);
         }
