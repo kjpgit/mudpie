@@ -1,7 +1,7 @@
 //! Low level parsing of an HTTP Request (path and headers)
 
 use std::collections::HashMap;
-use std::ascii::OwnedAsciiExt;
+use std::ascii::OwnedAsciiExt; // the magic for into_ascii_lowercase
 
 use byteutils;
 use super::WebRequest;
@@ -18,17 +18,12 @@ enum ParseError {
 }
 
 
-
-/// Parse a request.  Must end with \r\n\r\n
+/// Parse a HTTP 1.0/1.1 request.  Must end with \r\n\r\n, which is typically
+/// what your recv() loop waits for.
 ///
-/// Currently panics on invalid request, which is actually handy for manual
-///testing, / as we can verify which line triggered the error.  
-/// TODO: return an error which is fine grained enough to be verified by unit
-/// tests.
-/// request_bytes: request including final \r\n\r\n
+/// request_bytes: raw request including final \r\n\r\n
 pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     /*
-
     http://tools.ietf.org/html/rfc7230#section-5.3.1
 
     When making a request directly to an origin server, other than a
@@ -45,7 +40,6 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     http://tools.ietf.org/html/rfc7230#section-3.2.4
 
     Header line folding is obsolete and must be rejected.  (yay!)
-        
     */
     assert!(request_bytes.ends_with(b"\r\n\r\n"));
 
@@ -92,7 +86,8 @@ pub fn parse_request(request_bytes: &[u8]) -> Result<WebRequest, ParseError> {
     }
 
     // Also decode path into a normalized form.
-    let path_decoded = byteutils::percent_decode(environ[b"path".to_vec()].as_slice());
+    let path_decoded = byteutils::percent_decode(
+            environ[b"path".to_vec()].as_slice());
     let path_decoded_utf8 = String::from_utf8_lossy(
             path_decoded.as_slice()).into_owned();
 
