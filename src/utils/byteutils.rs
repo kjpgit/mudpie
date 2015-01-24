@@ -8,7 +8,7 @@
 /// Needle must be not empty.
 ///
 pub fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if needle.len() == 0 {
+    if needle.is_empty() {
         panic!("memmem: empty needle");
     }
     let mut idx = 0;
@@ -102,6 +102,7 @@ pub fn percent_decode(input: &[u8]) -> Vec<u8> {
 }
 
 
+/// Remove leading and trailing spaces (b' ') from input
 pub fn strip(input: &[u8]) -> &[u8] {
     return lstrip(rstrip(input));
 }
@@ -133,8 +134,9 @@ pub fn rstrip(input: &[u8]) -> &[u8] {
 }
 
 
+/// Parse a number from ascii text 
 pub fn parse_u64(input: &[u8]) -> Option<u64> {
-    if input.len() == 0 {
+    if input.is_empty() {
         return None;
     }
     let mut ret: u64 = 0;
@@ -177,6 +179,12 @@ fn test_split_bytes() {
     assert!(parts.len() == 2);
     assert!(parts[0] == b"hello");
     assert!(parts[1] == b"world dude");
+
+    let parts = split_bytes_on(b"    ".as_slice(), b' ', 2);
+    assert_eq!(parts.len(), 3);
+    assert_eq!(parts[0], b"");
+    assert_eq!(parts[1], b"");
+    assert_eq!(parts[2], b"  ");
 }
 
 #[test]
