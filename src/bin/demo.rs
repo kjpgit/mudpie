@@ -24,6 +24,7 @@ fn get_index_page(_req: &WebRequest) -> WebResponse {
     page.push_str("<ul>");
     page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Shows Request Headers");
     page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
+    page.push_str("<li><a href=\"/post-only\">/post-only</a> Only allows POST");
     page.push_str("</ul>");
     page = to_html(page);
     return WebResponse::new_html(page);
@@ -67,9 +68,11 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
-    svr.add_path("/", get_index_page);
-    svr.add_path("/hello", get_hello_page);
-    svr.add_path("/panic", get_panic_page);
+    svr.add_path("get", "/", get_index_page);
+    svr.add_path("get", "/hello", get_hello_page);
+    svr.add_path_prefix("get", "/hello/", get_hello_page);
+    svr.add_path("get", "/panic", get_panic_page);
+    svr.add_path("post", "/post-only", get_panic_page);
 
     // Start worker threads and serve content
     svr.run("127.0.0.1", 8000);

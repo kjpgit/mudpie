@@ -92,7 +92,10 @@ pub type PageFunction = fn(&WebRequest) -> WebResponse;
 
 
 struct DispatchRule {
-    prefix: String,
+    // Either path or prefix must be set.
+    path: String,
+    is_prefix: bool,
+    methods: Vec<String>,
     page_fn: PageFunction
 }
 
@@ -132,11 +135,25 @@ impl WebServer {
     }
 
     /// Add an exact match rule
-    pub fn add_path(&mut self, path: &str, page_fn: PageFunction) {
+    pub fn add_path(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
-            prefix: path.to_string(), 
-            page_fn: page_fn 
+            path: path.to_string(), 
+            is_prefix: false,
+            page_fn: page_fn,
+            methods: WebServer::parse_methods(methods),
+        };
+        fn_map.push(rule);
+    }
+
+    /// Add a prefix match rule
+    pub fn add_path_prefix(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
+        let fn_map = self.rules.as_mut().unwrap();
+        let rule = DispatchRule { 
+            path: path.to_string(), 
+            is_prefix: true,
+            page_fn: page_fn,
+            methods: WebServer::parse_methods(methods),
         };
         fn_map.push(rule);
     }
@@ -180,6 +197,15 @@ impl WebServer {
             worker_thread_main(priv_ctx);
         });
     }
+
+    fn parse_methods(methods: &str) -> Vec<String> {
+        let mut parts = methods.split_str(",");
+        let mut ret = Vec::new();
+        for p in parts {
+            ret.push(p.to_string());
+        }
+        return ret;
+    }
 }
 
 
@@ -197,6 +223,8 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 
 // HTTP specific parsing/errors
 
+#[allow(unused_parens)]
+#[allow(unused_assignments)]
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     let mut sentinel = HTTPContext { 
         stream: stream, 
@@ -212,19 +240,44 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     }
     let req = req.unwrap();
     println!("parsed request ok: path={}", req.path);
+
+    // Route it
+    let mut found_path_match = false;
+
     for rule in ctx.shared_ctx.rules.iter() {
-        // todo: prefix
-        if rule.prefix == req.path {
-            let response = (rule.page_fn)(&req);
-            sentinel.send_response(&response);
-            return;
+        let mut matched;
+        if rule.is_prefix {
+            matched = req.path.as_slice().starts_with(rule.path.as_slice());
+        } else {
+            matched = (rule.path == req.path);
+        }
+
+        if matched {
+            found_path_match = true;
+            // Now check methods
+            for method in rule.methods.iter() {
+                // todo: fewer copies, move to fn
+                if method.as_bytes() == 
+                        req.environ[b"method".to_vec()].as_slice() {
+                    // found a rule match
+                    let response = (rule.page_fn)(&req);
+                    sentinel.send_response(&response);
+                    return;
+                }
+            }
         }
     }
 
     println!("no rule matched {}", req.path);
     let mut response = WebResponse::new();
-    response.set_code(404, "Not Found, Bro");
-    response.set_data(b"Error 404: Resource not found".to_vec());
+    if found_path_match {
+        // TODO: return allow: header
+        response.set_code(405, "Not Found, Bro");
+        response.set_data(b"Error 405: Method not allowed".to_vec());
+    } else {
+        response.set_code(404, "Not Found, Bro");
+        response.set_data(b"Error 404: Resource not found".to_vec());
+    }
     sentinel.send_response(&response);
 }
 
