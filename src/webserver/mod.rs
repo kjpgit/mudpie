@@ -60,8 +60,6 @@ impl WebResponse {
 
 /// A request from a client
 ///
-/// TODO: add the request body, or a way to fetch it.
-///
 pub struct WebRequest { 
     environ: HashMap<Vec<u8>, Vec<u8>>,
     path: String,
