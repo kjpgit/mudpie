@@ -375,29 +375,46 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
     let chunk_size = 4096;
     let mut req_buffer = Vec::<u8>::with_capacity(chunk_size);
     loop {
+        // Read some more data
         let ioret = stream.push(chunk_size, &mut req_buffer);
         // todo: err handle
         let size = ioret.unwrap();
         //println!("read size {}", size);
-        if size > 0 {
-            //println!("req_buffer {}", req_buffer.len());
-            let split_pos = byteutils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
-            if split_pos.is_some() {
-                let split_pos = split_pos.unwrap();
-                println!("read raw request: {} bytes", split_pos);
-                let req = http_request::parse(req_buffer.as_slice());
-                if req.is_ok() {
-                    let req = req.ok().unwrap();
-                    let ret = WebRequest {
-                        environ: req.environ,
-                        path: req.path,
-                        method: req.method,
-                    };
-                    return Some(ret);
-                } else {
-                    return None;
-                }
+        if size == 0 {
+            continue;
+        }
+
+        // Look for \r\n\r\n, which terminates the request headers
+        //println!("req_buffer {}", req_buffer.len());
+        let split_pos = byteutils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
+        if split_pos.is_none() {
+            continue;
+        }
+
+        let split_pos = split_pos.unwrap();
+        println!("read raw request: {} bytes", split_pos);
+
+        // Try to parse it
+        let req = http_request::parse(req_buffer.slice_to(split_pos + 4));
+        if req.is_err() {
+            return None;
+        }
+
+        // Valid request.  See if there's a body to read too.
+        let req = req.ok().unwrap();
+        {
+            let clen = req.environ.get(b"http_content-length");
+            if clen.is_some() {
+                println!("body to read");
+
             }
         }
+
+        let ret = WebRequest {
+            environ: req.environ,
+            path: req.path,
+            method: req.method,
+        };
+        return Some(ret);
     }
 }

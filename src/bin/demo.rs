@@ -18,20 +18,21 @@ fn to_html(input: String) -> String {
 }
 
 
-fn get_index_page(_req: &WebRequest) -> WebResponse {
+fn index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
     page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Shows Request Headers");
     page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
-    page.push_str("<li><a href=\"/post-only\">/post-only</a> Only allows POST");
+    page.push_str("<li><a href=\"/form_enter\">/form_enter</a> Form Submission Example");
+    page.push_str("<li><a href=\"/form_post\">/post-only</a> Only allows POST");
     page.push_str("</ul>");
     page = to_html(page);
     return WebResponse::new_html(page);
 }
 
 
-fn get_hello_page(req: &WebRequest) -> WebResponse {
+fn hello_page(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Hello World!</h1>");
     page.push_str("<p>Unicode text: \u{03A6}\u{03A9}\u{20AC}\u{20AA}</p>");
@@ -59,8 +60,25 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
 
 
 // This will automatically generate a 500 Internal Server Error
-fn get_panic_page(_req: &WebRequest) -> WebResponse {
+fn panic_page(_req: &WebRequest) -> WebResponse {
     panic!("I can't go on!");
+}
+
+
+fn form_enter(_req: &WebRequest) -> WebResponse {
+    let mut page = String::new();
+    page.push_str("<h1>Form Example</h1>");
+    page.push_str("<form action=\"/form_post\" method=\"Post\">");
+    page.push_str("Name: <input type=\"text\" name=\"test\">");
+    page.push_str("<input type=\"submit\" value=\"Submit\">");
+    page.push_str("</form>");
+    page = to_html(page);
+    return WebResponse::new_html(page);
+}
+
+fn form_post(_req: &WebRequest) -> WebResponse {
+    let mut page = String::new();
+    return WebResponse::new_html(page);
 }
 
 
@@ -68,11 +86,13 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
-    svr.add_path("get", "/", get_index_page);
-    svr.add_path("get", "/hello", get_hello_page);
-    svr.add_path_prefix("get", "/hello/", get_hello_page);
-    svr.add_path("get", "/panic", get_panic_page);
-    svr.add_path("post", "/post-only", get_panic_page);
+    svr.add_path("get", "/", index_page);
+    svr.add_path("get", "/hello", hello_page);
+    svr.add_path_prefix("get", "/hello/", hello_page);
+    svr.add_path("get", "/panic", panic_page);
+
+    svr.add_path("get", "/form_enter", form_enter);
+    svr.add_path("post", "/form_post", form_post);
 
     // Start worker threads and serve content
     svr.run("127.0.0.1", 8000);
