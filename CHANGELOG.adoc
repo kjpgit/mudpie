@@ -1,0 +1,7 @@
+= Changelog
+
+== 0.0.8
+
+* Prefix rules
+* Method checks
+* Encapsulation methods
