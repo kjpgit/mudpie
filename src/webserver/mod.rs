@@ -63,6 +63,13 @@ impl WebResponse {
 /// TODO: add the request body, or a way to fetch it.
 ///
 pub struct WebRequest { 
+    environ: HashMap<Vec<u8>, Vec<u8>>,
+    path: String,
+    method: String,
+}
+
+
+impl WebRequest {
     /// The CGI/WSGI like environment dictionary.
     ///
     /// Keys:
@@ -75,16 +82,27 @@ pub struct WebRequest {
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
-    pub environ: HashMap<Vec<u8>, Vec<u8>>,
+    pub fn get_environ(&self) -> &HashMap<Vec<u8>, Vec<u8>> {
+        return &self.environ;
+    }
 
     /// The percent decoded and utf8 (lossy) decoded path.
     ///
     /// For the raw path, see environ[path].  
     /// Note: This does not normalize '/./' or  '/../' components.
-    pub path: String,
+    pub fn get_path(&self) -> &str {
+        return self.path.as_slice();
+    }
 
-    _force_private: (),
+    /// The utf8 (lossy) decoded method.
+    ///
+    /// For the raw method, see environ[method].  
+    pub fn get_method(&self) -> &str {
+        return self.method.as_slice();
+    }
 }
+
+
 
 
 /// The page handler function type 
@@ -351,7 +369,7 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
                     let ret = WebRequest {
                         environ: req.environ,
                         path: req.path,
-                        _force_private: ()
+                        method: req.method,
                     };
                     return Some(ret);
                 } else {

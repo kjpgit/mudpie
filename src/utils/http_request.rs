@@ -8,6 +8,7 @@ use super::byteutils;
 pub struct Request {
     pub environ: HashMap<Vec<u8>, Vec<u8>>,
     pub path: String,
+    pub method: String,
 }
 
 
@@ -95,6 +96,10 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     let path_decoded_utf8 = String::from_utf8_lossy(
             path_decoded.as_slice()).into_owned();
 
+    // And method
+    let method_utf8 = String::from_utf8_lossy(
+            method.as_slice()).into_owned();
+
     // Now process the headers
     for line in lines.iter().skip(1) {
         if line.len() == 0 {
@@ -129,6 +134,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     return Ok(Request {
         environ: environ,
         path: path_decoded_utf8,
+        method: method_utf8,
     });
 }
 

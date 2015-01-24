@@ -39,7 +39,7 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
     page.push_str("<pre>");
     page.push_str("Request Environment:\n\n");
     let mut raw_environ = Vec::new();
-    for (k, v) in req.environ.iter() {
+    for (k, v) in req.get_environ().iter() {
         let k = String::from_utf8_lossy(k.as_slice()).into_owned();
         let v = String::from_utf8_lossy(v.as_slice()).into_owned();
         raw_environ.push((k, v));
