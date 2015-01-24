@@ -57,11 +57,11 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     }
 
     let method = request_parts[0].to_vec().into_ascii_lowercase();
-    let path = request_parts[1];
+    let path = request_parts[1];  // NB: don't copy yet
     let protocol = request_parts[2].to_vec().into_ascii_lowercase();
 
     // Split doesn't coalesce spaces for us
-    if method.len() == 0 || path.len() == 0 || protocol.len() == 0 {
+    if method.is_empty() || path.is_empty() || protocol.is_empty() {
         return Err(ParseError::BadRequestLine);
     }
 
@@ -70,9 +70,10 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     }
 
     let mut environ = HashMap::<Vec<u8>, Vec<u8>>::new();
-    environ.insert(b"method".to_vec(), method.to_vec());
-    environ.insert(b"protocol".to_vec(), protocol.to_vec());
+    environ.insert(b"method".to_vec(), method.clone());
+    environ.insert(b"protocol".to_vec(), protocol.clone());
 
+    // Parse path and query string
     if method == b"options" && path == b"*" {
         environ.insert(b"path".to_vec(), path.to_vec());
         environ.insert(b"query_string".to_vec(), b"".to_vec());
@@ -80,7 +81,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
         if path[0] != b'/' {
             return Err(ParseError::InvalidAbsolutePath);
         }
-        let parts = byteutils::split_bytes_on(path, b'?', 1); 
+        let parts = byteutils::split_bytes_on(path.as_slice(), b'?', 1); 
         if parts.len() > 1 {
             environ.insert(b"path".to_vec(), parts[0].to_vec());
             environ.insert(b"query_string".to_vec(), parts[1].to_vec());
@@ -96,15 +97,15 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     let path_decoded_utf8 = String::from_utf8_lossy(
             path_decoded.as_slice()).into_owned();
 
-    // And method
+    // Decode method too, to make application code simpler
     let method_utf8 = String::from_utf8_lossy(
             method.as_slice()).into_owned();
 
     // Now process the headers
     for line in lines.iter().skip(1) {
-        if line.len() == 0 {
+        if line.is_empty() {
             // The last part (\r\n\r\n) appears as an empty header
-            continue;
+            break;
         }
 
         // "Header: Value"
@@ -163,6 +164,10 @@ fn test_request_ok() {
 
 #[test]
 fn test_request_bad() {
+    let s = b"\r\n\r\n";
+    let r = parse(s);
+    assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
+
     let s = b"GET /\r\n\r\n";
     let r = parse(s);
     assert_eq!(r.err().unwrap(), ParseError::BadRequestLine);
