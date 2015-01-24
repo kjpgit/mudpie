@@ -270,7 +270,6 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     }
 
     let req = req.unwrap();
-    println!("parsed request ok: imethod={}, path={}", req.method, req.path);
 
     // Do routing
     let ret = do_routing(ctx, &req);
@@ -398,6 +397,7 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
     // Valid request.  See if there's a body to read too.
     let mut body = None;
     let req = req.ok().unwrap();
+    println!("parsed request ok: imethod={}, path={}", req.method, req.path);
     {
         // borrowing req.environ here
         let clen = req.environ.get(b"http_content-length");

@@ -1,4 +1,4 @@
-use std::io::{TcpListener, TcpStream};
+use std::io::{TcpStream};
 use std::io::IoError;
 
 use utils::byteutils;
@@ -15,7 +15,7 @@ pub fn read_until_headers_end(buffer: &mut Vec<u8>,
         }
 
         let size = ioret.ok().unwrap();
-        println!("read size {}", size);
+        //println!("read size {}", size);
         if size == 0 {
             continue;
         }
@@ -26,7 +26,7 @@ pub fn read_until_headers_end(buffer: &mut Vec<u8>,
         if split_pos.is_none() {
             continue;
         }
-        return Ok(split_pos.unwrap());
+        return Ok(split_pos.unwrap() + 4);
     }
 }
 
