@@ -266,26 +266,24 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
 
     // Do routing
     let ret = do_routing(ctx, &req);
-    if let RoutingResult::FoundRule(page_fn) = ret {
-        let response = (page_fn)(&req);
-        sentinel.send_response(&response);
-        return;
-    }
-
-
-/*
-    println!("no rule matched {}", req.path);
-    let mut response = WebResponse::new();
-    if found_path_match {
-        // TODO: return allow: header
-        response.set_code(405, "Not Found, Bro");
-        response.set_data(b"Error 405: Method not allowed".to_vec());
-    } else {
-        response.set_code(404, "Not Found, Bro");
-        response.set_data(b"Error 404: Resource not found".to_vec());
+    let mut response;
+    match ret {
+        RoutingResult::FoundRule(page_fn) => {
+            response = (page_fn)(&req);
+        }
+        RoutingResult::NoPathMatch => {
+            response = WebResponse::new();
+            response.set_code(404, "Not Found");
+            response.set_data(b"Error 404: Resource not found".to_vec());
+        }
+        RoutingResult::NoMethodMatch => {
+            response = WebResponse::new();
+            // TODO: return allow: header
+            response.set_code(405, "Method not allowed");
+            response.set_data(b"Error 405: Method not allowed".to_vec());
+        }
     }
     sentinel.send_response(&response);
-*/
 }
 
 
@@ -308,7 +306,7 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
             found_path_match = true;
             // Now check methods
             for method in rule.methods.iter() {
-                if *method == req.path {
+                if *method == req.method {
                     // Found a rule match
                     return RoutingResult::FoundRule(rule.page_fn);
                 }
