@@ -254,7 +254,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 #[allow(unused_parens)]
 #[allow(unused_assignments)]
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
-    let mut sentinel = HTTPContext { 
+    let mut sentinel = HTTPConnectionSentinel { 
         stream: stream, 
         started_response: false 
     };
@@ -328,44 +328,19 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
 }
 
 
-struct HTTPContext {
+struct HTTPConnectionSentinel {
     stream: TcpStream,
     started_response: bool,
 }
 
-impl HTTPContext {
+impl HTTPConnectionSentinel {
     fn send_response(&mut self, response: &WebResponse) {
-        // todo: don't panic if logging fails?
-        println!("sending response: code={}, body_length={}",
-            response.code, response.body.len());
-
-        let mut resp = String::new();
-        resp.push_str(format!("HTTP/1.1 {} {}\r\n", 
-            response.code, 
-            response.status).as_slice());
-        resp.push_str("Connection: close\r\n");
-        resp.push_str(format!("Content-length: {}\r\n", 
-                response.body.len()).as_slice());
-
-        for (k, v) in response.headers.iter() {
-            resp.push_str(k.as_slice());
-            resp.push_str(": ");
-            resp.push_str(v.as_slice());
-            resp.push_str("\r\n");
-        }
-
-        resp.push_str("\r\n");
-
-        // TODO: error check
-        // We *don't* want to panic if we're already in a panic, and
-        // sending the internal error message.
         self.started_response = true;
-        let _ioret = self.stream.write_str(resp.as_slice());
-        let _ioret = self.stream.write(response.body.as_slice());
+        send_response(&mut self.stream, response);
     }
 }
 
-impl Drop for HTTPContext {
+impl Drop for HTTPConnectionSentinel {
     /// If we paniced and/or are about to die, make sure client gets a 500
     fn drop(&mut self) {
         if !self.started_response {
@@ -439,4 +414,33 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
         body: body,
     };
     return Some(ret);
+}
+
+
+fn send_response(stream: &mut TcpStream, response: &WebResponse) {
+    // todo: don't panic if logging fails?
+    println!("sending response: code={}, body_length={}",
+            response.code, response.body.len());
+
+    let mut resp = String::new();
+    resp.push_str(format!("HTTP/1.1 {} {}\r\n", 
+                response.code, 
+                response.status).as_slice());
+    resp.push_str("Connection: close\r\n");
+    resp.push_str(format!("Content-length: {}\r\n", 
+                response.body.len()).as_slice());
+
+    for (k, v) in response.headers.iter() {
+        resp.push_str(k.as_slice());
+        resp.push_str(": ");
+        resp.push_str(v.as_slice());
+        resp.push_str("\r\n");
+    }
+    resp.push_str("\r\n");
+
+    // TODO: error check
+    // We *don't* want to panic if we're already in a panic, and
+    // sending the internal error message.
+    let _ioret = stream.write_str(resp.as_slice());
+    let _ioret = stream.write(response.body.as_slice());
 }
