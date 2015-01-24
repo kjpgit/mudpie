@@ -22,7 +22,8 @@ fn index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
-    page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Shows Request Headers");
+    page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Hello page, shows Request Headers");
+    page.push_str("<li><a href=\"/hello/some/resource\">/hello/some/resource</a> Anything under /hello/ also works");
     page.push_str("<li><a href=\"/panic\">/panic</a> A crashing handler");
     page.push_str("<li><a href=\"/form_enter\">/form_enter</a> Form Submission Example");
     page.push_str("<li><a href=\"/form_post\">/form_post</a> Only allows POST");
