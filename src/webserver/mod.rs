@@ -68,7 +68,6 @@ pub struct WebRequest {
     method: String,
 }
 
-
 impl WebRequest {
     /// The CGI/WSGI like environment dictionary.
     ///
@@ -94,7 +93,7 @@ impl WebRequest {
         return self.path.as_slice();
     }
 
-    /// The utf8 (lossy) decoded method.
+    /// The utf8 (lossy) decoded method, in lowercase.
     ///
     /// For the raw method, see environ[method].  
     pub fn get_method(&self) -> &str {
@@ -104,13 +103,11 @@ impl WebRequest {
 
 
 
-
 /// The page handler function type 
 pub type PageFunction = fn(&WebRequest) -> WebResponse;
 
 
 struct DispatchRule {
-    // Either path or prefix must be set.
     path: String,
     is_prefix: bool,
     methods: Vec<String>,
@@ -153,6 +150,9 @@ impl WebServer {
     }
 
     /// Add an exact match rule
+    /// 
+    /// methods: comma separated list of methods
+
     pub fn add_path(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
@@ -165,6 +165,8 @@ impl WebServer {
     }
 
     /// Add a prefix match rule
+    /// 
+    /// methods: comma separated list of methods
     pub fn add_path_prefix(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
@@ -239,7 +241,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 }
 
 
-// HTTP specific parsing/errors
+// HTTP specific processing
 
 #[allow(unused_parens)]
 #[allow(unused_assignments)]
@@ -248,6 +250,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         stream: stream, 
         started_response: false 
     };
+
+    // Read the request (headers only, not body yet)
     let req = read_request(&mut sentinel.stream);
     if req.is_none() {
         let mut resp = WebResponse::new();
@@ -256,36 +260,20 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         sentinel.send_response(&resp);
         return;
     }
+
     let req = req.unwrap();
     println!("parsed request ok: path={}", req.path);
 
-    // Route it
-    let mut found_path_match = false;
-
-    for rule in ctx.shared_ctx.rules.iter() {
-        let mut matched;
-        if rule.is_prefix {
-            matched = req.path.as_slice().starts_with(rule.path.as_slice());
-        } else {
-            matched = (rule.path == req.path);
-        }
-
-        if matched {
-            found_path_match = true;
-            // Now check methods
-            for method in rule.methods.iter() {
-                // todo: fewer copies, move to fn
-                if method.as_bytes() == 
-                        req.environ[b"method".to_vec()].as_slice() {
-                    // found a rule match
-                    let response = (rule.page_fn)(&req);
-                    sentinel.send_response(&response);
-                    return;
-                }
-            }
-        }
+    // Do routing
+    let ret = do_routing(ctx, &req);
+    if let RoutingResult::FoundRule(page_fn) = ret {
+        let response = (page_fn)(&req);
+        sentinel.send_response(&response);
+        return;
     }
 
+
+/*
     println!("no rule matched {}", req.path);
     let mut response = WebResponse::new();
     if found_path_match {
@@ -297,7 +285,43 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         response.set_data(b"Error 404: Resource not found".to_vec());
     }
     sentinel.send_response(&response);
+*/
 }
+
+
+enum RoutingResult {
+    FoundRule(PageFunction),
+    NoPathMatch,
+    NoMethodMatch,
+}
+
+fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
+    let mut found_path_match = false;
+    for rule in ctx.shared_ctx.rules.iter() {
+        let mut matched;
+        if rule.is_prefix {
+            matched = req.path.as_slice().starts_with(rule.path.as_slice());
+        } else {
+            matched = rule.path == req.path;
+        }
+        if matched {
+            found_path_match = true;
+            // Now check methods
+            for method in rule.methods.iter() {
+                if *method == req.path {
+                    // Found a rule match
+                    return RoutingResult::FoundRule(rule.page_fn);
+                }
+            }
+        }
+    }
+    if found_path_match {
+        return RoutingResult::NoMethodMatch;
+    } else {
+        return RoutingResult::NoPathMatch;
+    }
+}
+
 
 struct HTTPContext {
     stream: TcpStream,
