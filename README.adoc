@@ -37,7 +37,7 @@ fn get_hello_page(req: &WebRequest) -> WebResponse {
 
 fn main() {
     let mut svr = WebServer::new();
-    svr.add_path("/hello", get_hello_page);
+    svr.add_path("get", "/hello", get_hello_page);
     svr.run("127.0.0.1", 8000);
 }
 ----
