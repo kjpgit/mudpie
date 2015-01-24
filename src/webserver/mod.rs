@@ -6,7 +6,8 @@ use std::io::{Acceptor, Listener};
 
 use utils::threadpool::ThreadPool;
 use utils::byteutils;
-use utils::http_request;
+use utils;
+use std::usize::MAX as USIZE_MAX;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -378,68 +379,64 @@ impl Drop for HTTPContext {
 }
 
 fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
-    // Read this amount at a time, if we want to set a max request size.
-    let chunk_size = 4096;
-    let mut req_buffer = Vec::<u8>::with_capacity(chunk_size);
-    loop {
-        // Read some more data
-        let ioret = stream.push(chunk_size, &mut req_buffer);
-        // todo: err handle
-        let size = ioret.unwrap();
-        //println!("read size {}", size);
-        if size == 0 {
-            continue;
-        }
-
-        // Look for \r\n\r\n, which terminates the request headers
-        //println!("req_buffer {}", req_buffer.len());
-        let split_pos = byteutils::memmem(req_buffer.as_slice(), b"\r\n\r\n");
-        if split_pos.is_none() {
-            continue;
-        }
-
-        let split_pos = split_pos.unwrap();
-        println!("read raw request: {} bytes", split_pos);
-
-        // Try to parse it
-        let req = http_request::parse(req_buffer.slice_to(split_pos + 4));
-        if req.is_err() {
-            return None;
-        }
-
-
-        let mut body = None;
-
-        // Valid request.  See if there's a body to read too.
-        let req = req.ok().unwrap();
-        {
-            let clen = req.environ.get(b"http_content-length");
-            if clen.is_some() {
-                // todo: send 100-continue
-
-                let clen = byteutils::parse_u64(
-                    clen.unwrap().as_slice());
-                if clen.is_some() {
-                    let clen = clen.unwrap();
-                    println!("body to read: {} bytes", clen);
-                    let final_size = split_pos + 4 + clen as usize;
-                    while req_buffer.len() < final_size {
-                        let ioret = stream.push(chunk_size, &mut req_buffer);
-                        // todo: err handle
-                        ioret.unwrap();
-                    }
-                    body = Some(req_buffer.slice(split_pos + 4, final_size).
-                        to_vec());
-                }
-            }
-        }
-
-        let ret = WebRequest {
-            environ: req.environ,
-            path: req.path,
-            method: req.method,
-            body: body,
-        };
-        return Some(ret);
+    let mut req_buffer = Vec::<u8>::with_capacity(4096);
+    let iores = utils::io::read_until_headers_end(&mut req_buffer, stream);
+    if iores.is_err() {
+        // todo: log io error
+        return None;
     }
+
+    let request_size = iores.unwrap();
+    println!("read raw request: {} bytes", request_size);
+
+    // Try to parse it
+    let req = utils::http_request::parse(req_buffer.slice_to(request_size));
+    if req.is_err() {
+        return None;
+    }
+
+    // Valid request.  See if there's a body to read too.
+    let mut body = None;
+    let req = req.ok().unwrap();
+    {
+        // borrowing req.environ here
+        let clen = req.environ.get(b"http_content-length");
+        if clen.is_some() {
+            let clen = byteutils::parse_u64(clen.unwrap().as_slice());
+            if clen.is_none() {
+                // unparseable content-length
+                println!("error: can't parse content-length");
+                return None;
+            }
+
+            // TODO: send 100-continue
+
+            let clen = clen.unwrap();
+            println!("body size: {} bytes", clen);
+
+            if clen > (USIZE_MAX as u64){
+                println!("error: body too big: {}", clen);
+                return None;
+            }
+
+            // Start one new buffer, so we don't copy when done
+            let mut body_buffer = req_buffer.slice_from(request_size).to_vec();
+            let iores = utils::io::read_until_size(
+                    &mut body_buffer, stream, clen as usize);
+            if iores.is_err() {
+                // todo: log io error
+                return None;
+            }
+            assert!(body_buffer.len() >= clen as usize);
+            body = Some(body_buffer);
+        }
+    }
+
+    let ret = WebRequest {
+        environ: req.environ,
+        path: req.path,
+        method: req.method,
+        body: body,
+    };
+    return Some(ret);
 }
