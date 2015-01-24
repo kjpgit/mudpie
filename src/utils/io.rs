@@ -8,13 +8,8 @@ pub fn read_until_headers_end(buffer: &mut Vec<u8>,
 {
     let chunk_size = 4096;
     loop { 
-        // Read some more data
-        let ioret = stream.push(chunk_size, buffer);
-        if ioret.is_err() {
-            return Err(ioret.err().unwrap());
-        }
-
-        let size = ioret.ok().unwrap();
+        // Try to read some more data
+        let size = try!(stream.push(chunk_size, buffer));
         //println!("read size {}", size);
         if size == 0 {
             continue;
@@ -36,10 +31,7 @@ pub fn read_until_size(buffer: &mut Vec<u8>,
 {
     let chunk_size = 4096;
     while buffer.len() < size {
-        let ioret = stream.push(chunk_size, buffer);
-        if ioret.is_err() {
-            return Err(ioret.err().unwrap());
-        }
+        try!(stream.push(chunk_size, buffer));
     }
     return Ok(());
 }
