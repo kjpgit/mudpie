@@ -29,15 +29,14 @@ pages you can visit at  +http://localhost:8000/+.
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
 
-fn get_hello_page(req: &WebRequest) -> WebResponse {
-    let mut page = String::new();
-    page.push_str("<h1>Hello World!</h1>");
+fn hello(req: &WebRequest) -> WebResponse {
+    let page = "<h1>Hello World!</h1>".to_string();
     return WebResponse::new_html(page);
 }
 
 fn main() {
     let mut svr = WebServer::new();
-    svr.add_path("get", "/hello", get_hello_page);
+    svr.add_path("get", "/hello", hello);
     svr.run("127.0.0.1", 8000);
 }
 ----
