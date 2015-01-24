@@ -64,6 +64,15 @@ fn to_hexval(byte: u8) -> Option<u8> {
 }
 
 
+/// Return decimal value of byte, or None
+fn to_decval(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'...b'9' => Some(byte - b'0'),
+        _ => None
+    }
+}
+
+
 /// Decode %XX hex escapes.
 pub fn percent_decode(input: &[u8]) -> Vec<u8> {
     let mut i = 0;
@@ -121,6 +130,22 @@ pub fn rstrip(input: &[u8]) -> &[u8] {
         ret = ret.slice_to(ret.len() - 1);
     }
     return ret;
+}
+
+
+pub fn parse_u64(input: &[u8]) -> Option<u64> {
+    if input.len() == 0 {
+        return None;
+    }
+    let mut ret: u64 = 0;
+    for c in input.iter() {
+        let c_val = to_decval(*c);
+        match c_val {
+            Some(n) => ret = ret * 10 + n as u64,
+            None => return None
+        }
+    }
+    return Some(ret);
 }
 
 
@@ -199,4 +224,22 @@ fn test_rstrip() {
     assert_eq!(rstrip(b" here now"), b" here now");
     assert_eq!(rstrip(b"   "), b"");
     assert_eq!(rstrip(b""), b"");
+}
+
+#[test]
+fn test_decval() {
+    assert_eq!(to_decval(b'0').unwrap(), 0);
+    assert_eq!(parse_u64(b"12345").unwrap(), 12345);
+
+    assert_eq!(parse_u64(b"12345").unwrap(), 12345);
+    assert_eq!(parse_u64(b"12345999123").unwrap(), 12345999123);
+    assert_eq!(parse_u64(b"1234512345999123").unwrap(), 1234512345999123);
+
+    assert!(parse_u64(b" 12345").is_none());
+    assert!(parse_u64(b"12345 ").is_none());
+    assert!(parse_u64(b" ").is_none());
+    assert!(parse_u64(b"").is_none());
+    assert!(parse_u64(b"123a").is_none());
+    assert!(parse_u64(b"-123").is_none());
+    assert!(parse_u64(b"bcd").is_none());
 }

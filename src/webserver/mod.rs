@@ -13,7 +13,7 @@ use utils::http_request;
 pub struct WebResponse {
     code: i32,
     status: String, 
-    data: Vec<u8>,
+    body: Vec<u8>,
     headers: HashMap<String, String>,
 }
 
@@ -21,13 +21,13 @@ impl WebResponse {
     /// Create a default response 
     ///
     /// The code and status are defaulted to 200 "OK", which can be changed
-    /// via the `set_code` method.  Headers and data are empty; see `set_data`
+    /// via the `set_code` method.  Headers and body are empty; see `set_body`
     /// and `set_header`.
     pub fn new() -> WebResponse {
         return WebResponse {
                 code: 200,
                 status: "OK".to_string(),
-                data: Vec::new(),
+                body: Vec::new(),
                 headers: HashMap::new(),
             };
     }
@@ -35,7 +35,7 @@ impl WebResponse {
     /// Shortcut for creating a successful Unicode HTML response.
     pub fn new_html(body: String) -> WebResponse {
         let mut ret = WebResponse::new();   
-        ret.set_data(body.into_bytes());
+        ret.set_body(body.into_bytes());
         ret.set_header("Content-Type", "text/html; charset=utf-8");
         return ret;
     }
@@ -47,8 +47,8 @@ impl WebResponse {
     }
 
     /// Set the response body
-    pub fn set_data(&mut self, data: Vec<u8>) {
-        self.data = data;
+    pub fn set_body(&mut self, body: Vec<u8>) {
+        self.body = body;
     }
 
     /// Set a response header.  If it already exists, it will be overwritten.
@@ -66,6 +66,7 @@ pub struct WebRequest {
     environ: HashMap<Vec<u8>, Vec<u8>>,
     path: String,
     method: String,
+    body: Option<Vec<u8>>,
 }
 
 impl WebRequest {
@@ -98,6 +99,14 @@ impl WebRequest {
     /// For the raw method, see environ[method].  
     pub fn get_method(&self) -> &str {
         return self.method.as_slice();
+    }
+
+    /// The request body, or None if one wasn't sent
+    pub fn get_body(&self) -> Option<&[u8]> {
+        match self.body {
+            Some(ref body) => Some(body.as_slice()),
+            None => None
+        }
     }
 }
 
@@ -256,13 +265,13 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     if req.is_none() {
         let mut resp = WebResponse::new();
         resp.set_code(400, "Bad Request");
-        resp.set_data(b"Error 400: Bad Request".to_vec());
+        resp.set_body(b"Error 400: Bad Request".to_vec());
         sentinel.send_response(&resp);
         return;
     }
 
     let req = req.unwrap();
-    println!("parsed request ok: path={}", req.path);
+    println!("parsed request ok: imethod={}, path={}", req.method, req.path);
 
     // Do routing
     let ret = do_routing(ctx, &req);
@@ -274,13 +283,13 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         RoutingResult::NoPathMatch => {
             response = WebResponse::new();
             response.set_code(404, "Not Found");
-            response.set_data(b"Error 404: Resource not found".to_vec());
+            response.set_body(b"Error 404: Resource not found".to_vec());
         }
         RoutingResult::NoMethodMatch => {
             response = WebResponse::new();
             // TODO: return allow: header
             response.set_code(405, "Method not allowed");
-            response.set_data(b"Error 405: Method not allowed".to_vec());
+            response.set_body(b"Error 405: Method not allowed".to_vec());
         }
     }
     sentinel.send_response(&response);
@@ -330,7 +339,7 @@ impl HTTPContext {
     fn send_response(&mut self, response: &WebResponse) {
         // todo: don't panic if logging fails?
         println!("sending response: code={}, body_length={}",
-            response.code, response.data.len());
+            response.code, response.body.len());
 
         let mut resp = String::new();
         resp.push_str(format!("HTTP/1.1 {} {}\r\n", 
@@ -338,7 +347,7 @@ impl HTTPContext {
             response.status).as_slice());
         resp.push_str("Connection: close\r\n");
         resp.push_str(format!("Content-length: {}\r\n", 
-                response.data.len()).as_slice());
+                response.body.len()).as_slice());
 
         for (k, v) in response.headers.iter() {
             resp.push_str(k.as_slice());
@@ -354,7 +363,7 @@ impl HTTPContext {
         // sending the internal error message.
         self.started_response = true;
         let _ioret = self.stream.write_str(resp.as_slice());
-        let _ioret = self.stream.write(response.data.as_slice());
+        let _ioret = self.stream.write(response.body.as_slice());
     }
 }
 
@@ -364,7 +373,7 @@ impl Drop for HTTPContext {
         if !self.started_response {
             let mut resp = WebResponse::new();
             resp.set_code(500, "Uh oh :-(");
-            resp.set_data(b"Error 500: Internal Error".to_vec());
+            resp.set_body(b"Error 500: Internal Error".to_vec());
             self.send_response(&resp);
         }
     }
@@ -400,13 +409,30 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
             return None;
         }
 
+
+        let mut body = None;
+
         // Valid request.  See if there's a body to read too.
         let req = req.ok().unwrap();
         {
             let clen = req.environ.get(b"http_content-length");
             if clen.is_some() {
-                println!("body to read");
+                // todo: send 100-continue
 
+                let clen = byteutils::parse_u64(
+                    clen.unwrap().as_slice());
+                if clen.is_some() {
+                    let clen = clen.unwrap();
+                    println!("body to read: {} bytes", clen);
+                    let final_size = split_pos + 4 + clen as usize;
+                    while req_buffer.len() < final_size {
+                        let ioret = stream.push(chunk_size, &mut req_buffer);
+                        // todo: err handle
+                        ioret.unwrap();
+                    }
+                    body = Some(req_buffer.slice(split_pos + 4, final_size).
+                        to_vec());
+                }
             }
         }
 
@@ -414,6 +440,7 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
             environ: req.environ,
             path: req.path,
             method: req.method,
+            body: body,
         };
         return Some(ret);
     }

@@ -23,9 +23,9 @@ fn index_page(_req: &WebRequest) -> WebResponse {
     page.push_str("<h1>Available Resources</h1>");
     page.push_str("<ul>");
     page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Shows Request Headers");
-    page.push_str("<li><a href=\"/panic\">/panic</a> Simulates a crash");
+    page.push_str("<li><a href=\"/panic\">/panic</a> A crashing handler");
     page.push_str("<li><a href=\"/form_enter\">/form_enter</a> Form Submission Example");
-    page.push_str("<li><a href=\"/form_post\">/post-only</a> Only allows POST");
+    page.push_str("<li><a href=\"/form_post\">/form_post</a> Only allows POST");
     page.push_str("</ul>");
     page = to_html(page);
     return WebResponse::new_html(page);
@@ -76,8 +76,16 @@ fn form_enter(_req: &WebRequest) -> WebResponse {
     return WebResponse::new_html(page);
 }
 
-fn form_post(_req: &WebRequest) -> WebResponse {
+fn form_post(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
+    page.push_str("<h1>You Posted:</h1>");
+    let value = match req.get_body() {
+        Some(body) => String::from_utf8_lossy(body).into_owned(),
+        None => "** Nothing **".to_string()
+    };
+    page.push_str("<pre>");
+    page.push_str(value.as_slice());
+    page.push_str("</pre>");
     return WebResponse::new_html(page);
 }
 
