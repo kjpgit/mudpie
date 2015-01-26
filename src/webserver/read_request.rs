@@ -15,6 +15,8 @@ pub enum Error {
 }
 
 
+// Read a full request from the client (headers and body)
+// max_size: max body size
 pub fn read_request(stream: &mut Reader, max_size: u64) 
         -> Result<WebRequest, Error> {
     let mut req_buffer = Vec::<u8>::with_capacity(4096);
@@ -80,6 +82,8 @@ pub fn read_request(stream: &mut Reader, max_size: u64)
 }
 
 
+// Read until \r\n\r\n, which terminates the request headers
+// Note: extra data may be in the buffer.
 fn read_until_headers_end(buffer: &mut Vec<u8>,
         stream: &mut Reader) -> Result<usize, IoError> 
 {
@@ -92,7 +96,6 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
             continue;
         }
 
-        // Look for \r\n\r\n, which terminates the request headers
         //println!("req_buffer {}", req_buffer.len());
         let split_pos = utils::byteutils::memmem(
                 buffer.as_slice(), b"\r\n\r\n");
@@ -104,6 +107,8 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
 }
 
 
+// Read until the buffer is at least size bytes long
+// Note: extra data may be in the buffer.
 fn read_until_size(buffer: &mut Vec<u8>,
         stream: &mut Reader, size: usize) -> Result<(), IoError>
 {
