@@ -50,14 +50,28 @@ fn get_debug_info(req: &WebRequest) -> String {
 
 fn index_page(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
-    page.push_str("<h1>Available Resources</h1>");
-    page.push_str("<ul>");
-    page.push_str("<li><a href=\"/hello?foo=bar\">/hello</a> Hello page, shows Request Headers");
-    page.push_str("<li><a href=\"/hello/some/resource\">/hello/some/resource</a> Anything under /hello/ also works");
-    page.push_str("<li><a href=\"/panic\">/panic</a> A crashing handler");
-    page.push_str("<li><a href=\"/form_enter\">/form_enter</a> Form Submission Example");
-    page.push_str("<li><a href=\"/form_post\">/form_post</a> Only allows POST");
-    page.push_str("</ul>");
+    page.push_str("<h1>Mudpie Demo Application</h1>");
+    page.push_str("<h2>Example Resources</h2>");
+    page.push_str(r##"
+<dl>
+
+<dt><a href="/hello?foo=bar">/hello</a> 
+<dd>Hello page, shows Request Headers
+
+<dt><a href="/hello/some/resource">/hello/some/resource</a> 
+<dd>Anything under the "/hello/" prefix also works
+
+<dt><a href="/panic">/panic</a> 
+<dd>A crashing handler
+
+<dt><a href="/form_enter">/form_enter</a> 
+<dd>Form Submission Example
+
+<dt><a href="/form_post">/form_post</a> 
+<dd>Only allows POST
+
+</dl>
+"##);
     page = to_html(page);
     return WebResponse::new_html(page);
 }
@@ -84,10 +98,16 @@ fn panic_page(_req: &WebRequest) -> WebResponse {
 fn form_enter(_req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Form Example</h1>");
-    page.push_str("<form action=\"/form_post\" method=\"Post\">");
-    page.push_str("Name: <input type=\"text\" name=\"test\">");
-    page.push_str("<input type=\"submit\" value=\"Submit\">");
-    page.push_str("</form>");
+    page.push_str(r##"
+<h2>POST to /form_post</h2>
+<form action="/form_post" method="Post">
+First Name: <input type="text" name="fname">
+<br/>
+Last Name: <input type="text" name="lname">
+<br/>
+<input type="submit" value="Submit">
+</form>
+"##);
     page = to_html(page);
     return WebResponse::new_html(page);
 }
