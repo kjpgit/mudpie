@@ -1,5 +1,9 @@
 = Changelog
 
+== 0.1.0
+
+* Cleanups in read_request (error handling, code reorg)
+
 == 0.0.9
 
 * Read the request body
