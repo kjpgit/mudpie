@@ -2,6 +2,7 @@
 
 use std;
 use std::io::Reader;
+use std::ascii::OwnedAsciiExt; 
 
 use super::WebRequest;
 use utils;
@@ -65,7 +66,8 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
             }
 
             // Send 100-continue if needed
-            if false { //needs_100_continue(req) {
+            if needs_100_continue(&req) {
+                println!("sending 100 continue");
                 let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
                 try!(stream.write(cont));
             }
@@ -86,6 +88,22 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
         body: body,
     };
     return Ok(ret);
+}
+
+
+fn needs_100_continue(req: &utils::http_request::Request) -> bool {
+    let val = req.environ.get(b"http_expect");
+    if val.is_none() {
+        return false;
+    }
+    let val = val.unwrap().clone().into_ascii_lowercase();
+    if val == b"100-continue" {
+        return true;
+    } else {
+        // Note: the RFC only defines 100-continue, and says we MAY
+        // generate 417 (Expectation Failed) here.
+        return false;
+    }
 }
 
 

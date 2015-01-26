@@ -1,5 +1,9 @@
 = Changelog
 
+== 0.1.1
+
+* support "Expect: 100-continue" request header
+
 == 0.1.0
 
 * Cleanups in read_request (error handling, code reorg)
