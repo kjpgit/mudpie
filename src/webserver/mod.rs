@@ -372,7 +372,7 @@ fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
     // Valid request.  See if there's a body to read too.
     let mut body = None;
     let req = req.ok().unwrap();
-    println!("parsed request ok: imethod={}, path={}", req.method, req.path);
+    println!("parsed request ok: method={}, path={}", req.method, req.path);
     {
         // borrowing req.environ here
         let clen = req.environ.get(b"http_content-length");
