@@ -4,6 +4,7 @@ use mudpie::{WebServer, WebRequest, WebResponse};
 
 // Example server program
 // Demonstrates use of the mudpie library
+// TODO: escape untrusted output strings
 
 
 // Add html and body tags

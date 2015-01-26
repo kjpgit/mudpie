@@ -72,7 +72,7 @@ struct WorkerSentinel {
 impl Drop for WorkerSentinel {
     fn drop(&mut self) {
         // ruh roh! alert master!
-        // todo: error check?
+        // NB: If this mutex is poisoned, we probably can't go on.
         let mut lock = self.ctx.watchdog_mutex.lock().unwrap();
         *lock += 1;
         self.ctx.watchdog_cvar.notify_one();
