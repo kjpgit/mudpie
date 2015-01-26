@@ -162,7 +162,8 @@ impl WebServer {
     /// 
     /// methods: comma separated list of methods
 
-    pub fn add_path(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
+    pub fn add_path(&mut self, methods: &str, path: &str, 
+            page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
@@ -176,7 +177,8 @@ impl WebServer {
     /// Add a prefix match rule
     /// 
     /// methods: comma separated list of methods
-    pub fn add_path_prefix(&mut self, methods: &str, path: &str, page_fn: PageFunction) {
+    pub fn add_path_prefix(&mut self, methods: &str, path: &str, 
+            page_fn: PageFunction) {
         let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
@@ -345,6 +347,7 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
 }
 
 
+// A sentinel that sends a 500 error unless started_response=True
 struct HTTPConnectionSentinel {
     stream: TcpStream,
     started_response: bool,
@@ -369,8 +372,11 @@ impl Drop for HTTPConnectionSentinel {
     }
 }
 
-fn send_response(stream: &mut TcpStream, response: &WebResponse) {
-    // todo: don't panic if logging fails?
+
+// Send response headers and body
+// Headers will be sent as UTF-8 bytes, but you need to stay in ASCII range to
+// be safe.
+fn send_response(stream: &mut Writer, response: &WebResponse) {
     println!("sending response: code={}, body_length={}",
             response.code, response.body.len());
 
@@ -390,9 +396,10 @@ fn send_response(stream: &mut TcpStream, response: &WebResponse) {
     }
     resp.push_str("\r\n");
 
-    // TODO: error check
-    // We *don't* want to panic if we're already in a panic, and
-    // sending the internal error message.
+    // TODO: log any IO errors when writing the response.
+    // Note that this still doesn't guarantee the client got the data.
     let _ioret = stream.write_str(resp.as_slice());
+    // TODO: don't send the body on a HEAD request, if we want 'automagic' HEAD
+    // support.
     let _ioret = stream.write(response.body.as_slice());
 }
