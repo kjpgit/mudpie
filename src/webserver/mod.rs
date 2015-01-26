@@ -5,9 +5,10 @@ use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
 
 use utils::threadpool::ThreadPool;
-use utils::byteutils;
-use utils;
-use std::usize::MAX as USIZE_MAX;
+
+mod read_request;
+
+static MAX_REQUEST_BODY_SIZE: u64 = 1_000_000_000;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -260,16 +261,32 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     };
 
     // Read the request (headers only, not body yet)
-    let req = read_request(&mut sentinel.stream);
-    if req.is_none() {
-        let mut resp = WebResponse::new();
-        resp.set_code(400, "Bad Request");
-        resp.set_body(b"Error 400: Bad Request".to_vec());
-        sentinel.send_response(&resp);
-        return;
+    let req = read_request::read_request(&mut sentinel.stream,
+            MAX_REQUEST_BODY_SIZE);
+    match req {
+        Err(read_request::Error::InvalidRequest) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(400, "Bad Request");
+            resp.set_body(b"Error 400: Bad Request".to_vec());
+            sentinel.send_response(&resp);
+            return;
+        },
+        Err(read_request::Error::TooLarge) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(413, "Request Entity Too Large");
+            resp.set_body(b"Error 413: Request Entity Too Large".to_vec());
+            sentinel.send_response(&resp);
+            return;
+        },
+        Err(read_request::Error::ReadIoError(e)) => {
+            println!("IoError during request: {}", e);
+            sentinel.started_response = true; // we're done
+            return;
+        },
+        Ok(..) => {}
     }
 
-    let req = req.unwrap();
+    let req = req.ok().unwrap();
 
     // Do routing
     let ret = do_routing(ctx, &req);
@@ -351,71 +368,6 @@ impl Drop for HTTPConnectionSentinel {
         }
     }
 }
-
-fn read_request(stream: &mut TcpStream) -> Option<WebRequest> {
-    let mut req_buffer = Vec::<u8>::with_capacity(4096);
-    let iores = utils::io::read_until_headers_end(&mut req_buffer, stream);
-    if iores.is_err() {
-        // todo: log io error
-        return None;
-    }
-
-    let request_size = iores.unwrap();
-    println!("read raw request: {} bytes", request_size);
-
-    // Try to parse it
-    let req = utils::http_request::parse(req_buffer.slice_to(request_size));
-    if req.is_err() {
-        return None;
-    }
-
-    // Valid request.  See if there's a body to read too.
-    let mut body = None;
-    let req = req.ok().unwrap();
-    println!("parsed request ok: method={}, path={}", req.method, req.path);
-    {
-        // borrowing req.environ here
-        let clen = req.environ.get(b"http_content-length");
-        if clen.is_some() {
-            let clen = byteutils::parse_u64(clen.unwrap().as_slice());
-            if clen.is_none() {
-                // unparseable content-length
-                println!("error: can't parse content-length");
-                return None;
-            }
-
-            // TODO: send 100-continue
-
-            let clen = clen.unwrap();
-            println!("body size: {} bytes", clen);
-
-            if clen > (USIZE_MAX as u64){
-                println!("error: body too big: {}", clen);
-                return None;
-            }
-
-            // Start one new buffer, so we don't copy when done
-            let mut body_buffer = req_buffer.slice_from(request_size).to_vec();
-            let iores = utils::io::read_until_size(
-                    &mut body_buffer, stream, clen as usize);
-            if iores.is_err() {
-                // todo: log io error
-                return None;
-            }
-            assert!(body_buffer.len() >= clen as usize);
-            body = Some(body_buffer);
-        }
-    }
-
-    let ret = WebRequest {
-        environ: req.environ,
-        path: req.path,
-        method: req.method,
-        body: body,
-    };
-    return Some(ret);
-}
-
 
 fn send_response(stream: &mut TcpStream, response: &WebResponse) {
     // todo: don't panic if logging fails?
