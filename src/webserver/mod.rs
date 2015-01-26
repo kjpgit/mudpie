@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::io::{TcpListener, TcpStream};
 use std::io::net::tcp::TcpAcceptor;
 use std::io::{Acceptor, Listener};
+use std::ascii::OwnedAsciiExt;
 
 use utils::threadpool::ThreadPool;
 
@@ -229,11 +231,12 @@ impl WebServer {
         });
     }
 
+    // returns methods in lowercase
     fn parse_methods(methods: &str) -> Vec<String> {
         let mut parts = methods.split_str(",");
         let mut ret = Vec::new();
         for p in parts {
-            ret.push(p.to_string());
+            ret.push(p.to_string().into_ascii_lowercase());
         }
         return ret;
     }
@@ -302,11 +305,12 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             response.set_code(404, "Not Found");
             response.set_body(b"Error 404: Resource not found".to_vec());
         }
-        RoutingResult::NoMethodMatch => {
+        RoutingResult::NoMethodMatch(methods) => {
             response = WebResponse::new();
-            // TODO: return allow: header
             response.set_code(405, "Method not allowed");
             response.set_body(b"Error 405: Method not allowed".to_vec());
+            let methods_joined = methods.connect(", ");
+            response.set_header("Allow", methods_joined.as_slice());
         }
     }
     sentinel.send_response(&response);
@@ -316,11 +320,12 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
 enum RoutingResult {
     FoundRule(PageFunction),
     NoPathMatch,
-    NoMethodMatch,
+    NoMethodMatch(Vec<String>),
 }
 
 fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
     let mut found_path_match = false;
+    let mut found_methods = HashSet::<&str>::new();
     for rule in ctx.shared_ctx.rules.iter() {
         let mut matched;
         if rule.is_prefix {
@@ -332,6 +337,7 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
             found_path_match = true;
             // Now check methods
             for method in rule.methods.iter() {
+                found_methods.insert(method.as_slice());
                 if *method == req.method {
                     // Found a rule match
                     return RoutingResult::FoundRule(rule.page_fn);
@@ -340,7 +346,11 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
         }
     }
     if found_path_match {
-        return RoutingResult::NoMethodMatch;
+        let mut methods = Vec::new();
+        for method in found_methods.iter() {
+            methods.push(method.to_string());
+        }
+        return RoutingResult::NoMethodMatch(methods);
     } else {
         return RoutingResult::NoPathMatch;
     }

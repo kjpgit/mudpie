@@ -71,6 +71,9 @@ fn index_page(_req: &WebRequest) -> WebResponse {
 <dt><a href="/form_post">/form_post</a> 
 <dd>Only allows POST
 
+<dt><a href="/silly_methods">/silly_methods</a> 
+<dd>Only allows PUT, OPTIONS, and FOO methods. See Allow: header
+
 </dl>
 "##);
     page = to_html(page);
@@ -125,13 +128,15 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
-    svr.add_path("get", "/", index_page);
+    svr.add_path("Get", "/", index_page);
     svr.add_path("get", "/hello", hello_page);
     svr.add_path_prefix("get", "/hello/", hello_page);
     svr.add_path("get", "/panic", panic_page);
 
     svr.add_path("get", "/form_enter", form_enter);
     svr.add_path("post", "/form_post", form_post);
+
+    svr.add_path("put,options,foo", "/silly_methods", hello_page);
 
     // Start worker threads and serve content
     svr.run("127.0.0.1", 8000);

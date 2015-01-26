@@ -3,6 +3,7 @@
 == 0.1.0
 
 * Cleanups in read_request (error handling, code reorg)
+* Set Allow: header on 405 Method not allowed 
 
 == 0.0.9
 
