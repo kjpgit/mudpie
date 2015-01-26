@@ -266,9 +266,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     };
 
     // Read the request (headers only, not body yet)
-    let req = read_request::read_request(&mut sentinel.stream,
-            MAX_REQUEST_BODY_SIZE);
-    match req {
+    let req = match read_request::read_request(&mut sentinel.stream,
+            MAX_REQUEST_BODY_SIZE) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
@@ -283,15 +282,13 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             sentinel.send_response(&resp);
             return;
         },
-        Err(read_request::Error::ReadIoError(e)) => {
+        Err(read_request::Error::IoError(e)) => {
             println!("IoError during request: {}", e);
             sentinel.started_response = true; // we're done
             return;
         },
-        Ok(..) => {}
-    }
-
-    let req = req.ok().unwrap();
+        Ok(req) => req,
+    };
 
     // Do routing
     let ret = do_routing(ctx, &req);

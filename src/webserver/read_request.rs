@@ -1,6 +1,6 @@
 //! Helper module for reading a WebRequest
 
-use std::io::IoError;
+use std;
 use std::io::Reader;
 
 use super::WebRequest;
@@ -9,33 +9,40 @@ use utils;
 
 // Possible errors from `read_request`
 pub enum Error {
-    ReadIoError(IoError),
+    IoError(std::io::IoError),
     InvalidRequest,
     TooLarge,
+}
+
+// Auto convert io::IOError into our module specific error
+impl std::error::FromError<std::io::IoError> for Error {
+    fn from_error(err: std::io::IoError) -> Error {
+        Error::IoError(err)
+    }
 }
 
 
 // Read a full request from the client (headers and body)
 // max_size: max body size
-pub fn read_request(stream: &mut Reader, max_size: u64) 
+//
+// We need a Reader+Writer, due to stupid HTTP 100-continue.
+// We transparently send the 100-Continue if expected of us.  However, the more
+// educated thing to do, for apps that actually care about this, would be to
+// call the app code first and let it validate the headers.
+pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64) 
         -> Result<WebRequest, Error> {
     let mut req_buffer = Vec::<u8>::with_capacity(4096);
-    let iores = read_until_headers_end(&mut req_buffer, stream);
-    if iores.is_err() {
-        return Err(Error::ReadIoError(iores.err().unwrap()));
-    }
-
-    let request_size = iores.unwrap();
-    println!("read raw request: {} bytes", request_size);
+    let req_size = try!(read_until_headers_end(&mut req_buffer, stream));
+    println!("read raw request: {} bytes", req_size);
 
     // Try to parse it
-    let req = utils::http_request::parse(req_buffer.slice_to(request_size));
-    if req.is_err() {
-        return Err(Error::InvalidRequest);
-    }
+    let req = match utils::http_request::parse(
+            req_buffer.slice_to(req_size)) {
+        Err(..) => return Err(Error::InvalidRequest),
+        Ok(parsed_req) => parsed_req,
+    };
 
     // Valid request.  
-    let req = req.ok().unwrap();
     println!("parsed request ok: method={}, path={}", req.method, req.path);
 
     // See if there's a body to read too.  
@@ -44,28 +51,28 @@ pub fn read_request(stream: &mut Reader, max_size: u64)
         // borrowing req.environ here
         let clen = req.environ.get(b"http_content-length");
         if clen.is_some() {
-            let clen = utils::byteutils::parse_u64(clen.unwrap().as_slice());
-            if clen.is_none() {
+            let clen = match utils::byteutils::parse_u64(
+                        clen.unwrap().as_slice()) {
                 // unparseable content-length
-                return Err(Error::InvalidRequest);
-            }
+                None => return Err(Error::InvalidRequest),
+                Some(clen) => clen,
+            };
 
-            let clen = clen.unwrap();
             println!("body size: {} bytes", clen);
 
             if clen > max_size {
                 return Err(Error::TooLarge);
             }
 
-            // TODO: send 100-continue if needed
+            // Send 100-continue if needed
+            if false { //needs_100_continue(req) {
+                let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
+                try!(stream.write(cont));
+            }
 
             // Start one new buffer, so we don't copy when done
-            let mut body_buffer = req_buffer.slice_from(request_size).to_vec();
-            let iores = read_until_size(
-                    &mut body_buffer, stream, clen as usize);
-            if iores.is_err() {
-                return Err(Error::ReadIoError(iores.err().unwrap()));
-            }
+            let mut body_buffer = req_buffer.slice_from(req_size).to_vec();
+            try!(read_until_size(&mut body_buffer, stream, clen as usize));
             assert!(body_buffer.len() >= clen as usize);
             body = Some(body_buffer);
         }
@@ -85,7 +92,7 @@ pub fn read_request(stream: &mut Reader, max_size: u64)
 // Read until \r\n\r\n, which terminates the request headers
 // Note: extra data may be in the buffer.
 fn read_until_headers_end(buffer: &mut Vec<u8>,
-        stream: &mut Reader) -> Result<usize, IoError> 
+        stream: &mut Reader) -> Result<usize, std::io::IoError> 
 {
     let chunk_size = 4096;
     loop { 
@@ -110,7 +117,7 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
 // Read until the buffer is at least size bytes long
 // Note: extra data may be in the buffer.
 fn read_until_size(buffer: &mut Vec<u8>,
-        stream: &mut Reader, size: usize) -> Result<(), IoError>
+        stream: &mut Reader, size: usize) -> Result<(), std::io::IoError>
 {
     let chunk_size = 4096;
     while buffer.len() < size {
