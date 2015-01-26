@@ -94,17 +94,8 @@ fn form_enter(_req: &WebRequest) -> WebResponse {
 
 fn form_post(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
-    page.push_str("<h1>You Posted:</h1>");
-    let value = match req.get_body() {
-        Some(body) => String::from_utf8_lossy(body).into_owned(),
-        None => "** Nothing **".to_string()
-    };
-    page.push_str("<pre>");
-    page.push_str(value.as_slice());
-    page.push_str("</pre>");
-
+    page.push_str("<h1>Thank you for the POST</h1>");
     page.push_str(get_debug_info(req).as_slice());
-
     return WebResponse::new_html(page);
 }
 
