@@ -93,20 +93,20 @@ impl WebRequest {
     /// For the raw path, see environ[path].  
     /// Note: This does not normalize '/./' or  '/../' components.
     pub fn get_path(&self) -> &str {
-        return self.path.as_slice();
+        return &*self.path;
     }
 
     /// The utf8 (lossy) decoded method, in lowercase.
     ///
     /// For the raw method, see environ[method].  
     pub fn get_method(&self) -> &str {
-        return self.method.as_slice();
+        return &*self.method;
     }
 
     /// The request body, or None if one wasn't sent
     pub fn get_body(&self) -> Option<&[u8]> {
         match self.body {
-            Some(ref body) => Some(body.as_slice()),
+            Some(ref body) => Some(&**body),
             None => None
         }
     }
@@ -196,7 +196,7 @@ impl WebServer {
     pub fn run(&mut self, address: &str, port: i32) {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
-        let listener = TcpListener::bind(addr.as_slice());
+        let listener = TcpListener::bind(&*addr);
         let acceptor = listener.listen().unwrap();
         
         // .clone doesn't work, compiler bug
@@ -307,7 +307,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             response.set_code(405, "Method not allowed");
             response.set_body(b"Error 405: Method not allowed".to_vec());
             let methods_joined = methods.connect(", ");
-            response.set_header("Allow", methods_joined.as_slice());
+            response.set_header("Allow", &*methods_joined);
         }
     }
     sentinel.send_response(&response);
@@ -326,15 +326,15 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
     for rule in ctx.shared_ctx.rules.iter() {
         let mut matched;
         if rule.is_prefix {
-            matched = req.path.as_slice().starts_with(rule.path.as_slice());
+            matched = req.path.starts_with(&*rule.path);
         } else {
-            matched = rule.path == req.path;
+            matched = req.path == rule.path;
         }
         if matched {
             found_path_match = true;
             // Now check methods
             for method in rule.methods.iter() {
-                found_methods.insert(method.as_slice());
+                found_methods.insert(&**method);
                 if *method == req.method {
                     // Found a rule match
                     return RoutingResult::FoundRule(rule.page_fn);
@@ -388,25 +388,25 @@ fn send_response(stream: &mut Writer, response: &WebResponse) {
             response.code, response.body.len());
 
     let mut resp = String::new();
-    resp.push_str(format!("HTTP/1.1 {} {}\r\n", 
+    resp.push_str(&*format!("HTTP/1.1 {} {}\r\n", 
                 response.code, 
-                response.status).as_slice());
+                response.status));
     resp.push_str("Connection: close\r\n");
-    resp.push_str(format!("Content-length: {}\r\n", 
-                response.body.len()).as_slice());
+    resp.push_str(&*format!("Content-length: {}\r\n", 
+                response.body.len()));
 
     for (k, v) in response.headers.iter() {
-        resp.push_str(k.as_slice());
+        resp.push_str(&**k);
         resp.push_str(": ");
-        resp.push_str(v.as_slice());
+        resp.push_str(&**v);
         resp.push_str("\r\n");
     }
     resp.push_str("\r\n");
 
     // TODO: log any IO errors when writing the response.
     // Note that this still doesn't guarantee the client got the data.
-    let _ioret = stream.write_str(resp.as_slice());
+    let _ioret = stream.write_str(&*resp);
     // TODO: don't send the body on a HEAD request, if we want 'automagic' HEAD
     // support.
-    let _ioret = stream.write(response.body.as_slice());
+    let _ioret = stream.write(&*response.body);
 }

@@ -51,8 +51,7 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
         // borrowing req.environ here
         let clen = req.environ.get(b"http_content-length");
         if clen.is_some() {
-            let clen = match utils::byteutils::parse_u64(
-                        clen.unwrap().as_slice()) {
+            let clen = match utils::byteutils::parse_u64(&**clen.unwrap()) {
                 // unparseable content-length
                 None => return Err(Error::InvalidRequest),
                 Some(clen) => clen,
@@ -121,8 +120,7 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
         }
 
         //println!("req_buffer {}", req_buffer.len());
-        let split_pos = utils::byteutils::memmem(
-                buffer.as_slice(), b"\r\n\r\n");
+        let split_pos = utils::byteutils::memmem(&**buffer, b"\r\n\r\n");
         if split_pos.is_none() {
             continue;
         }

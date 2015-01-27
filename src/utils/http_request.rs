@@ -82,7 +82,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
         if path[0] != b'/' {
             return Err(ParseError::InvalidAbsolutePath);
         }
-        let parts = byteutils::split_bytes_on(path.as_slice(), b'?', 1); 
+        let parts = byteutils::split_bytes_on(path, b'?', 1); 
         if parts.len() > 1 {
             environ.insert(b"path".to_vec(), parts[0].to_vec());
             environ.insert(b"query_string".to_vec(), parts[1].to_vec());
@@ -94,13 +94,13 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
 
     // Also decode path into a normalized form.
     let path_decoded = byteutils::percent_decode(
-            environ.get(b"path").unwrap().as_slice());
+            &**environ.get(b"path").unwrap());
     let path_decoded_utf8 = String::from_utf8_lossy(
-            path_decoded.as_slice()).into_owned();
+            &*path_decoded).into_owned();
 
     // Decode method too, to make application code simpler
     let method_utf8 = String::from_utf8_lossy(
-            method.as_slice()).into_owned();
+            &*method).into_owned();
 
     // Now process the headers
     for line in lines.iter().skip(1) {
@@ -137,7 +137,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
             },
             Entry::Occupied(mut entry) => {
                 (*entry.get_mut()).push_all(b",");
-                (*entry.get_mut()).push_all(header_value.as_slice());
+                (*entry.get_mut()).push_all(&*header_value);
             }
         }
     }
@@ -150,6 +150,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
 }
 
 
+// TODO: helper fns for environ lookup
 #[test]
 fn test_request_ok() {
     let s = b"GET / HTTP/1.0\r\n\r\n";
@@ -162,8 +163,8 @@ fn test_request_ok() {
     assert_eq!(r.environ[b"path".to_vec()], b"/foo%20bar".to_vec());
     assert_eq!(r.environ[b"protocol".to_vec()], b"http/1.0".to_vec());
 
-    assert_eq!(r.environ[b"http_foo".to_vec()].as_slice(), b"Bar");
-    assert_eq!(r.environ[b"http_a b c".to_vec()].as_slice(), b"D E F");
+    assert_eq!(&*r.environ[b"http_foo".to_vec()], b"Bar");
+    assert_eq!(&*r.environ[b"http_a b c".to_vec()], b"D E F");
 
     assert_eq!(r.path, "/foo bar");
 
@@ -176,8 +177,8 @@ fn test_request_ok() {
 fn test_request_multi_header() {
     let s = b"GET / HTTP/1.0\r\nH: foo\r\nH: bar\r\nZ: baz\r\nH:   hello again  \r\n\r\n";
     let r = parse(s).ok().unwrap();
-    assert_eq!(r.environ.get(b"http_h").unwrap().as_slice(), b"foo,bar,hello again");
-    assert_eq!(r.environ.get(b"http_z").unwrap().as_slice(), b"baz");
+    assert_eq!(&**r.environ.get(b"http_h").unwrap(), b"foo,bar,hello again");
+    assert_eq!(&**r.environ.get(b"http_z").unwrap(), b"baz");
 }
 
 #[test]
