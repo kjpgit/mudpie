@@ -1,5 +1,6 @@
 //! Low level parsing of an HTTP Request (path and headers)
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ascii::OwnedAsciiExt; // the magic for into_ascii_lowercase
 
@@ -123,13 +124,22 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
 
         let mut nice_header_name = b"http_".to_vec();
         nice_header_name.extend(header_parts[0].iter().cloned());
-        let nice_header_name = nice_header_name
-                .into_ascii_lowercase();
+        let nice_header_name = nice_header_name.into_ascii_lowercase();
         
-        // strip optional whitespace around header value
-        let header_value = byteutils::strip(header_parts[1]);
+        // Strip optional whitespace around header value
+        let header_value = byteutils::strip(header_parts[1]).to_vec();
 
-        environ.insert(nice_header_name, header_value.to_vec());
+        // If a header is repeated, make the values comma separated.
+        // Entry API is nice (gets around borrow checker frustration)
+        match environ.entry(nice_header_name) {
+            Entry::Vacant(entry) => { 
+                entry.insert(header_value); 
+            },
+            Entry::Occupied(mut entry) => {
+                (*entry.get_mut()).push_all(b",");
+                (*entry.get_mut()).push_all(header_value.as_slice());
+            }
+        }
     }
 
     return Ok(Request {
@@ -160,6 +170,14 @@ fn test_request_ok() {
     let s = b"OPTIONS * HTTP/1.1\r\n\r\n";
     let r = parse(s);
     assert!(r.is_ok());
+}
+
+#[test]
+fn test_request_multi_header() {
+    let s = b"GET / HTTP/1.0\r\nH: foo\r\nH: bar\r\nZ: baz\r\nH:   hello again  \r\n\r\n";
+    let r = parse(s).ok().unwrap();
+    assert_eq!(r.environ.get(b"http_h").unwrap().as_slice(), b"foo,bar,hello again");
+    assert_eq!(r.environ.get(b"http_z").unwrap().as_slice(), b"baz");
 }
 
 #[test]

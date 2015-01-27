@@ -3,6 +3,7 @@
 == 0.1.1
 
 * support "Expect: 100-continue" request header
+* support duplicate header names (make values comma separated)
 
 == 0.1.0
 
