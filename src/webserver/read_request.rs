@@ -37,8 +37,7 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
     println!("read raw request: {} bytes", req_size);
 
     // Try to parse it
-    let req = match utils::http_request::parse(
-            req_buffer.slice_to(req_size)) {
+    let req = match utils::http_request::parse(&req_buffer[..req_size]) {
         Err(..) => return Err(Error::InvalidRequest),
         Ok(parsed_req) => parsed_req,
     };
@@ -73,7 +72,7 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
             }
 
             // Start one new buffer, so we don't copy when done
-            let mut body_buffer = req_buffer.slice_from(req_size).to_vec();
+            let mut body_buffer = req_buffer[req_size..].to_vec();
             try!(read_until_size(&mut body_buffer, stream, clen as usize));
             assert!(body_buffer.len() >= clen as usize);
             body = Some(body_buffer);

@@ -44,7 +44,7 @@ pub fn split_bytes_on_crlf(src: &[u8]) -> Vec<&[u8]> {
     let mut ret = Vec::<&[u8]>::new();
     for w in src.windows(2) {
         if w == b"\r\n" {
-            ret.push(src.slice(start_idx, current_idx));
+            ret.push(&src[start_idx..current_idx]);
             start_idx = current_idx + 2;
         }
         current_idx += 1;
@@ -117,7 +117,7 @@ pub fn lstrip(input: &[u8]) -> &[u8] {
         }
         pos += 1;
     }
-    return input.slice_from(pos);
+    return &input[pos..];
 }
 
 
@@ -128,7 +128,7 @@ pub fn rstrip(input: &[u8]) -> &[u8] {
         if ret[ret.len() - 1] != b' ' {
             break;
         }
-        ret = ret.slice_to(ret.len() - 1);
+        ret = &ret[.. ret.len() - 1];
     }
     return ret;
 }
