@@ -149,8 +149,12 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     });
 }
 
+#[cfg(test)]
+fn assert_header_eq(req: &Request, header: &[u8], val: &[u8]) {
+    assert_eq!(&**req.environ.get(header).unwrap(), val);
+}
 
-// TODO: helper fns for environ lookup
+
 #[test]
 fn test_request_ok() {
     let s = b"GET / HTTP/1.0\r\n\r\n";
@@ -159,12 +163,12 @@ fn test_request_ok() {
 
     let s = b"GET /foo%20bar HTTP/1.0\r\nFoo: Bar\r\nA B C:   D E F  \r\n\r\n";
     let r = parse(s).ok().unwrap();
-    assert_eq!(r.environ[b"method".to_vec()], b"get".to_vec());
-    assert_eq!(r.environ[b"path".to_vec()], b"/foo%20bar".to_vec());
-    assert_eq!(r.environ[b"protocol".to_vec()], b"http/1.0".to_vec());
+    assert_header_eq(&r, b"method", b"get");
+    assert_header_eq(&r, b"path", b"/foo%20bar");
+    assert_header_eq(&r, b"protocol", b"http/1.0");
 
-    assert_eq!(&*r.environ[b"http_foo".to_vec()], b"Bar");
-    assert_eq!(&*r.environ[b"http_a b c".to_vec()], b"D E F");
+    assert_header_eq(&r, b"http_foo", b"Bar");
+    assert_header_eq(&r, b"http_a b c", b"D E F");
 
     assert_eq!(r.path, "/foo bar");
 
@@ -177,8 +181,8 @@ fn test_request_ok() {
 fn test_request_multi_header() {
     let s = b"GET / HTTP/1.0\r\nH: foo\r\nH: bar\r\nZ: baz\r\nH:   hello again  \r\n\r\n";
     let r = parse(s).ok().unwrap();
-    assert_eq!(&**r.environ.get(b"http_h").unwrap(), b"foo,bar,hello again");
-    assert_eq!(&**r.environ.get(b"http_z").unwrap(), b"baz");
+    assert_header_eq(&r, b"http_h", b"foo,bar,hello again");
+    assert_header_eq(&r, b"http_z", b"baz");
 }
 
 #[test]

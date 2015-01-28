@@ -169,13 +169,13 @@ fn test_memmem() {
 #[test]
 fn test_split_bytes() {
     let a = b"hello world dude";
-    let parts = split_bytes_on(&*a, b' ', 10);
+    let parts = split_bytes_on(a, b' ', 10);
     assert!(parts.len() == 3);
     assert!(parts[0] == b"hello");
     assert!(parts[1] == b"world");
     assert!(parts[2] == b"dude");
 
-    let parts = split_bytes_on(&*a, b' ', 1);
+    let parts = split_bytes_on(a, b' ', 1);
     assert!(parts.len() == 2);
     assert!(parts[0] == b"hello");
     assert!(parts[1] == b"world dude");
@@ -190,7 +190,7 @@ fn test_split_bytes() {
 #[test]
 fn test_split_crlf() {
     let a = b"hello world\r\ndude\r\n\r\nlast one\r\n";
-    let parts = split_bytes_on_crlf(&*a);
+    let parts = split_bytes_on_crlf(a);
     assert_eq!(parts.len(),  4);
     assert!(parts[0] == b"hello world");
     assert!(parts[1] == b"dude");
