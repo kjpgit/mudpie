@@ -63,6 +63,10 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
                 return Err(Error::TooLarge);
             }
 
+            // Cast it down, as we read in memory
+            assert!(clen < std::usize::MAX as u64);
+            let clen = clen as usize;
+
             // Send 100-continue if needed
             if needs_100_continue(&req) {
                 println!("sending 100 continue");
@@ -72,8 +76,17 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
 
             // Start one new buffer, so we don't copy when done
             let mut body_buffer = req_buffer[req_size..].to_vec();
-            try!(read_until_size(&mut body_buffer, stream, clen as usize));
-            assert!(body_buffer.len() >= clen as usize);
+            // Can free some memory
+            drop(req_buffer);
+
+            // Read the body
+            try!(read_until_size(&mut body_buffer, stream, clen));
+            assert!(body_buffer.len() >= clen);
+
+            // Make sure not to include an extra pipelined request
+            body_buffer.truncate(clen);
+            assert!(body_buffer.len() == clen);
+
             body = Some(body_buffer);
         }
     }
