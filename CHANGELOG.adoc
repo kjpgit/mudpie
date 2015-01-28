@@ -4,6 +4,9 @@
 
 * support "Expect: 100-continue" request header
 * support duplicate header names (make values comma separated)
+* fix potential overrun in request body read
+* code: use &[i..j] ("new" slicing syntax)
+* code: use &* (Deref) instead of as_slice()
 
 == 0.1.0
 
