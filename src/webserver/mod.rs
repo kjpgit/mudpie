@@ -260,10 +260,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 }
 
 
-// HTTP specific processing
-
-#[allow(unused_parens)]
-#[allow(unused_assignments)]
+// HTTP specific socket processing
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     let mut sentinel = HTTPConnectionSentinel { 
         stream: stream, 
