@@ -55,6 +55,11 @@ impl WebResponse {
         self.body = body;
     }
 
+    /// Set the response body as utf-8 bytes
+    pub fn set_body_str(&mut self, body: &str) {
+        self.body = body.as_bytes().to_vec();
+    }
+
     /// Set a response header.  If it already exists, it will be overwritten.
     pub fn set_header(&mut self, name: &str, value: &str) {
         self.headers.insert(name.to_string(), value.to_string());
@@ -271,14 +276,14 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
-            resp.set_body(b"Error 400: Bad Request".to_vec());
+            resp.set_body_str("Error 400: Bad Request");
             sentinel.send_response(&resp);
             return;
         },
         Err(read_request::Error::TooLarge) => {
             let mut resp = WebResponse::new();
             resp.set_code(413, "Request Entity Too Large");
-            resp.set_body(b"Error 413: Request Entity Too Large".to_vec());
+            resp.set_body_str("Error 413: Request Entity Too Large");
             sentinel.send_response(&resp);
             return;
         },
@@ -300,12 +305,12 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         RoutingResult::NoPathMatch => {
             response = WebResponse::new();
             response.set_code(404, "Not Found");
-            response.set_body(b"Error 404: Resource not found".to_vec());
+            response.set_body_str("Error 404: Resource not found");
         }
         RoutingResult::NoMethodMatch(methods) => {
             response = WebResponse::new();
             response.set_code(405, "Method not allowed");
-            response.set_body(b"Error 405: Method not allowed".to_vec());
+            response.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
             response.set_header("Allow", &*methods_joined);
         }
@@ -373,7 +378,7 @@ impl Drop for HTTPConnectionSentinel {
         if !self.started_response {
             let mut resp = WebResponse::new();
             resp.set_code(500, "Uh oh :-(");
-            resp.set_body(b"Error 500: Internal Error".to_vec());
+            resp.set_body_str("Error 500: Internal Error");
             self.send_response(&resp);
         }
     }
