@@ -123,7 +123,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
         }
 
         let mut nice_header_name = b"http_".to_vec();
-        nice_header_name.extend(header_parts[0].iter().cloned());
+        nice_header_name.push_all(header_parts[0]);
         let nice_header_name = nice_header_name.into_ascii_lowercase();
         
         // Strip optional whitespace around header value
