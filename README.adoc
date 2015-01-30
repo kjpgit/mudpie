@@ -16,6 +16,10 @@ be quite reliable.   It has no dependencies.
 typically handles SSL termination and request/response buffering for slow
 clients, and is typically event-driven for scalability.  
 
+NOTE: The {app} `master` branch is for Rust 1.0.0-alpha.  The {app} `nightly`
+branch might work on the nightly, but I don't have a lot of time to spend
+tracking changes until Rust 1.0.0-beta hits.
+
 
 == Try it out
 
