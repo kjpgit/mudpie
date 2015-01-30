@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::io::{TcpListener, TcpStream};
-use std::io::net::tcp::TcpAcceptor;
-use std::io::{Acceptor, Listener};
+use std::old_io::{TcpListener, TcpStream};
+use std::old_io::net::tcp::TcpAcceptor;
+use std::old_io::{Acceptor, Listener};
 use std::ascii::OwnedAsciiExt;
 
 use utils::threadpool::ThreadPool;
