@@ -7,6 +7,8 @@
 * fix potential overrun in request body read
 * code: use &[i..j] ("new" slicing syntax)
 * code: use &* (Deref) instead of as_slice()
+* Send 411, 505
+* get_body does not return an Option any more
 
 == 0.1.0
 
