@@ -93,11 +93,14 @@ impl WebRequest {
     /// * protocol = "http/1.0" or "http/1.1"
     /// * method = "get", "head", "options", ... 
     /// * path = "/full/path"
-    /// * query_string = "k=v&k2=v2" or ""
-    /// * http_xxx = "Header Value" 
+    /// * query_string = "k=v&k2=v2" or "" (empty)
+    /// * http_xxx = "Header Value".  Example: http_user-agent = "Mozilla Firefox"
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
+    /// 
+    /// If the same header name was repeated in the request, the values will be
+    /// concatenated, in order received, separated by a comma.
     pub fn get_environ(&self) -> &HashMap<Vec<u8>, Vec<u8>> {
         return &self.environ;
     }
