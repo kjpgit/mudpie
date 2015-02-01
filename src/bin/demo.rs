@@ -1,13 +1,12 @@
 #![allow(unstable)]
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
+use mudpie::html_element_escape;
 
 // Example server program
 // Demonstrates use of the mudpie library
 // Usage: ./demo [address] [port]
 // Example: ./demo 0.0.0.0 8001
-//
-// TODO: escape untrusted output strings
 
 
 // Add html and body tags
@@ -37,14 +36,15 @@ fn get_debug_info(req: &WebRequest) -> String {
     for pair in raw_environ.iter() {
         page.push_str("<tr>");
         page.push_str("<td>");
-        page.push_str(&*pair.0);
+        page.push_str(&*html_element_escape(&*pair.0));
         page.push_str("<td>");
-        page.push_str(&*pair.1);
+        page.push_str(&*html_element_escape(&*pair.1));
     }
     page.push_str("</table>");
     page.push_str("<h2>Request Body</h2>");
     let body = req.get_body();
-    page.push_str(&*String::from_utf8_lossy(&*body).into_owned());
+    let body = String::from_utf8_lossy(&*body).into_owned();
+    page.push_str(&*html_element_escape(&*body));
     return page;
 }
 
@@ -57,7 +57,7 @@ fn index_page(_req: &WebRequest) -> WebResponse {
 <dl>
 
 <dt><a href="/hello?foo=bar">/hello</a> 
-<dd>Hello page, shows Request Headers
+<dd>Hello page, shows Request Headers, outputs custom response header
 
 <dt><a href="/hello/some/resource">/hello/some/resource</a> 
 <dd>Anything under the "/hello/" prefix also works
