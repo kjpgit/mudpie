@@ -37,6 +37,11 @@ impl WebResponse {
     }
 
     /// Shortcut for creating a successful Unicode HTML response.
+    /// This is equivalent to: 
+    /// ```rust
+    /// set_body_str(body)
+    /// set_header("Content-Type", "text/html; charset=utf-8");
+    /// ```
     pub fn new_html(body: String) -> WebResponse {
         let mut ret = WebResponse::new();   
         ret.set_body(body.into_bytes());
@@ -44,7 +49,8 @@ impl WebResponse {
         return ret;
     }
 
-    /// Set the HTTP status code and message
+    /// Set the HTTP status code and message.  The message should contain ASCII
+    /// characters only.
     pub fn set_code(&mut self, code: i32, status: &str) {
         self.code = code;
         self.status = status.to_string();
@@ -55,12 +61,14 @@ impl WebResponse {
         self.body = body;
     }
 
-    /// Set the response body as utf-8 bytes
+    /// Set the response body as the UTF-8 encoded bytes from `body`.
+    /// Equivalent to set_body(body.as_bytes())
     pub fn set_body_str(&mut self, body: &str) {
         self.body = body.as_bytes().to_vec();
     }
 
     /// Set a response header.  If it already exists, it will be overwritten.
+    /// Header names and values should use ASCII characters only.
     pub fn set_header(&mut self, name: &str, value: &str) {
         self.headers.insert(name.to_string(), value.to_string());
     }
