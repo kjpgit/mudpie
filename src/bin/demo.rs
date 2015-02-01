@@ -40,11 +40,8 @@ fn get_debug_info(req: &WebRequest) -> String {
     }
     page.push_str("</table>");
     page.push_str("<h2>Request Body</h2>");
-    match req.get_body() {
-        Some(body) => page.push_str(
-            &*String::from_utf8_lossy(&*body).into_owned()),
-        None => page.push_str("n/a"),
-    }
+    let body = req.get_body();
+    page.push_str(&*String::from_utf8_lossy(&*body).into_owned());
     return page;
 }
 

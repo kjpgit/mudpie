@@ -73,7 +73,7 @@ pub struct WebRequest {
     environ: HashMap<Vec<u8>, Vec<u8>>,
     path: String,
     method: String,
-    body: Option<Vec<u8>>,
+    body: Vec<u8>,
 }
 
 impl WebRequest {
@@ -108,12 +108,10 @@ impl WebRequest {
         return &*self.method;
     }
 
-    /// The request body, or None if one wasn't sent
-    pub fn get_body(&self) -> Option<&[u8]> {
-        match self.body {
-            Some(ref body) => Some(&**body),
-            None => None
-        }
+    /// The request body.  Note that HTTP requests do not distinguish a null vs
+    /// 0 length body, so this no longer returns an Option.
+    pub fn get_body(&self) -> &[u8] {
+        return &*self.body;
     }
 }
 
@@ -274,6 +272,20 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
             resp.set_body_str("Error 400: Bad Request");
+            sentinel.send_response(&resp);
+            return;
+        },
+        Err(read_request::Error::LengthRequired) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(411, "Length Required");
+            resp.set_body_str("Error 411: Length Required");
+            sentinel.send_response(&resp);
+            return;
+        },
+        Err(read_request::Error::InvalidVersion) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(505, "Version not Supported");
+            resp.set_body_str("Error 505: Version not Supported");
             sentinel.send_response(&resp);
             return;
         },
