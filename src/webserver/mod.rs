@@ -265,7 +265,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         started_response: false 
     };
 
-    // Read the request (headers only, not body yet)
+    // Read full request (headers and body)
     let req = match read_request::read_request(&mut sentinel.stream,
             MAX_REQUEST_BODY_SIZE) {
         Err(read_request::Error::InvalidRequest) => {
