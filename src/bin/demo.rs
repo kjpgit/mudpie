@@ -4,6 +4,9 @@ use mudpie::{WebServer, WebRequest, WebResponse};
 
 // Example server program
 // Demonstrates use of the mudpie library
+// Usage: ./demo [address] [port]
+// Example: ./demo 0.0.0.0 8001
+//
 // TODO: escape untrusted output strings
 
 
@@ -135,6 +138,16 @@ fn main() {
 
     svr.add_path("put,options,foo", "/silly_methods", hello_page);
 
+    let args = std::os::args();
+    let mut addr = "127.0.0.1";
+    let mut port = 8000;
+    if args.len() > 1 {
+        addr = &*args[1];
+    }
+    if args.len() > 2 {
+        port = args[2].parse::<i32>().unwrap();
+    }
+
     // Start worker threads and serve content
-    svr.run("127.0.0.1", 8000);
+    svr.run(addr, port);
 }
