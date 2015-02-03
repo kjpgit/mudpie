@@ -272,45 +272,41 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 
 // HTTP specific socket processing
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
-    let mut sentinel = HTTPConnectionSentinel { 
-        stream: stream, 
-        started_response: false 
-    };
+    let mut stream = stream;
 
     // Read full request (headers and body)
-    let req = match read_request::read_request(&mut sentinel.stream,
+    let req = match read_request::read_request(&mut stream,
             MAX_REQUEST_BODY_SIZE) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
             resp.set_body_str("Error 400: Bad Request");
-            sentinel.send_response(&resp);
+            send_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::LengthRequired) => {
             let mut resp = WebResponse::new();
             resp.set_code(411, "Length Required");
             resp.set_body_str("Error 411: Length Required");
-            sentinel.send_response(&resp);
+            send_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::InvalidVersion) => {
             let mut resp = WebResponse::new();
             resp.set_code(505, "Version not Supported");
             resp.set_body_str("Error 505: Version not Supported");
-            sentinel.send_response(&resp);
+            send_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::TooLarge) => {
             let mut resp = WebResponse::new();
             resp.set_code(413, "Request Entity Too Large");
             resp.set_body_str("Error 413: Request Entity Too Large");
-            sentinel.send_response(&resp);
+            send_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::IoError(e)) => {
             println!("IoError during request: {}", e);
-            sentinel.started_response = true; // we're done
             return;
         },
         Ok(req) => req,
@@ -318,25 +314,58 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
 
     // Do routing
     let ret = do_routing(ctx, &req);
-    let mut response;
-    match ret {
-        RoutingResult::FoundRule(page_fn) => {
-            response = (page_fn)(&req);
-        }
+    let page_fn = match ret {
+        RoutingResult::FoundRule(page_fn) => page_fn,
         RoutingResult::NoPathMatch => {
-            response = WebResponse::new();
-            response.set_code(404, "Not Found");
-            response.set_body_str("Error 404: Resource not found");
+            let mut resp = WebResponse::new();
+            resp.set_code(404, "Not Found");
+            resp.set_body_str("Error 404: Resource not found");
+            send_response(&mut stream, Some(&req), &resp);
+            return;
         }
         RoutingResult::NoMethodMatch(methods) => {
-            response = WebResponse::new();
-            response.set_code(405, "Method not allowed");
-            response.set_body_str("Error 405: Method not allowed");
+            let mut resp = WebResponse::new();
+            resp.set_code(405, "Method not allowed");
+            resp.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
-            response.set_header("Allow", &*methods_joined);
+            resp.set_header("Allow", &*methods_joined);
+            send_response(&mut stream, Some(&req), &resp);
+            return;
+        }
+    };
+
+
+    // Run the handler.  If it panics, the sentinel will send a 500.
+    let mut sentinel = HTTPConnectionSentinel { 
+        request: req,
+        stream: stream, 
+        armed: true 
+    };
+    let response = (page_fn)(&sentinel.request);
+    sentinel.armed = false;
+    send_response(&mut sentinel.stream, 
+        Some(&sentinel.request),
+        &response);
+}
+
+
+// A sentinel that sends a 500 error unless armed=false
+struct HTTPConnectionSentinel {
+    stream: TcpStream,
+    armed: bool,
+    request: WebRequest,
+}
+
+impl Drop for HTTPConnectionSentinel {
+    /// If we paniced and/or are about to die, make sure client gets a 500
+    fn drop(&mut self) {
+        if self.armed {
+            let mut resp = WebResponse::new();
+            resp.set_code(500, "Uh oh :-(");
+            resp.set_body_str("Error 500: Internal error in handler function");
+            send_response(&mut self.stream, Some(&self.request), &resp);
         }
     }
-    sentinel.send_response(&response);
 }
 
 
@@ -380,36 +409,14 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
 }
 
 
-// A sentinel that sends a 500 error unless started_response=True
-struct HTTPConnectionSentinel {
-    stream: TcpStream,
-    started_response: bool,
-}
 
-impl HTTPConnectionSentinel {
-    fn send_response(&mut self, response: &WebResponse) {
-        self.started_response = true;
-        send_response(&mut self.stream, response);
-    }
-}
-
-impl Drop for HTTPConnectionSentinel {
-    /// If we paniced and/or are about to die, make sure client gets a 500
-    fn drop(&mut self) {
-        if !self.started_response {
-            let mut resp = WebResponse::new();
-            resp.set_code(500, "Uh oh :-(");
-            resp.set_body_str("Error 500: Internal Error");
-            self.send_response(&resp);
-        }
-    }
-}
-
-
-// Send response headers and body
+// Send response headers and body.
+// Body will not be sent if the request was a HEAD request.
 // Headers will be sent as UTF-8 bytes, but you need to stay in ASCII range to
 // be safe.
-fn send_response(stream: &mut Writer, response: &WebResponse) {
+fn send_response(stream: &mut Writer, 
+        request: Option<&WebRequest>, 
+        response: &WebResponse) {
     println!("sending response: code={}, body_length={}",
             response.code, response.body.len());
 
