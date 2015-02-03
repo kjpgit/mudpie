@@ -128,9 +128,9 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
-    svr.add_path("Get", "/", index_page);
-    svr.add_path("get", "/hello", hello_page);
-    svr.add_path_prefix("get", "/hello/", hello_page);
+    svr.add_path("GET, HEAD", "/", index_page);
+    svr.add_path("get, head", "/hello", hello_page);
+    svr.add_path_prefix("get,head", "/hello/", hello_page);
     svr.add_path("get", "/panic", panic_page);
 
     svr.add_path("get", "/form_enter", form_enter);
