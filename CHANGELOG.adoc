@@ -9,6 +9,7 @@
 * code: use &* (Deref) instead of as_slice()
 * Send 411, 505
 * get_body does not return an Option any more
+* HEAD works properly
 
 == 0.1.0
 
