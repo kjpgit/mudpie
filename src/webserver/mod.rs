@@ -37,9 +37,10 @@ impl WebResponse {
     }
 
     /// Shortcut for creating a successful Unicode HTML response.
+    ///
     /// This is equivalent to: 
     ///
-    /// ```rust
+    /// ```ignore
     /// set_body_str(body)
     /// set_header("Content-Type", "text/html; charset=utf-8");
     /// ```
