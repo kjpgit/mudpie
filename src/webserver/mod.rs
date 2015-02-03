@@ -251,7 +251,8 @@ impl WebServer {
         let mut parts = methods.split_str(",");
         let mut ret = Vec::new();
         for p in parts {
-            ret.push(p.to_string().into_ascii_lowercase());
+            let method = p.trim().to_string().into_ascii_lowercase();
+            ret.push(method);
         }
         return ret;
     }
