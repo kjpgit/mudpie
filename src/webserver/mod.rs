@@ -422,6 +422,7 @@ fn send_response(stream: &mut Writer,
     println!("sending response: code={}, body_length={}",
             response.code, response.body.len());
 
+    // TODO: respond with http/1.0 to a 1.0 request
     let mut resp = String::new();
     resp.push_str(&*format!("HTTP/1.1 {} {}\r\n", 
                 response.code, 
