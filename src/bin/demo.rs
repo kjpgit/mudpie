@@ -138,6 +138,8 @@ fn main() {
 
     svr.add_path("put,options,foo", "/silly_methods", hello_page);
 
+    //svr.set_max_request_body_size(10);
+
     let args = std::os::args();
     let mut addr = "127.0.0.1";
     let mut port = 8000;

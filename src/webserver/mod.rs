@@ -10,7 +10,7 @@ use utils::threadpool::ThreadPool;
 
 mod read_request;
 
-static MAX_REQUEST_BODY_SIZE: u64 = 1_000_000_000;
+static DEFAULT_MAX_REQUEST_BODY_SIZE: usize = 1_000_000;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -144,6 +144,7 @@ struct DispatchRule {
 struct WorkerSharedContext {
     rules: Vec<DispatchRule>,
     acceptor: TcpAcceptor,
+    max_request_body_size: usize,
 }
 
 struct WorkerPrivateContext {
@@ -157,6 +158,7 @@ pub struct WebServer {
     rules: Option<Vec<DispatchRule>>,
     thread_pool: ThreadPool,
     worker_shared_context: Option<Arc<WorkerSharedContext>>,
+    max_request_body_size: usize,
 }
 
 impl WebServer {
@@ -166,6 +168,7 @@ impl WebServer {
                 rules: Some(Vec::new()),
                 thread_pool: ThreadPool::new(),
                 worker_shared_context: None,
+                max_request_body_size: DEFAULT_MAX_REQUEST_BODY_SIZE,
             };
         return ret;
     }
@@ -174,6 +177,12 @@ impl WebServer {
     pub fn set_num_threads(&mut self, n: i32) {
         assert!(n > 0);
         self.nr_threads = n;
+    }
+
+    /// Set the maximum request body size.  Larger requests will generate 
+    /// a 413 error.
+    pub fn set_max_request_body_size(&mut self, size: usize) {
+        self.max_request_body_size = size;
     }
 
     /// Add an exact match rule
@@ -221,6 +230,7 @@ impl WebServer {
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
             acceptor: acceptor,
+            max_request_body_size: self.max_request_body_size,
         };
         self.worker_shared_context = Some(Arc::new(ctx));
 
@@ -278,7 +288,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
 
     // Read full request (headers and body)
     let req = match read_request::read_request(&mut stream,
-            MAX_REQUEST_BODY_SIZE) {
+            ctx.shared_ctx.max_request_body_size) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");

@@ -32,7 +32,7 @@ impl std::error::FromError<std::old_io::IoError> for Error {
 // We transparently send the 100-Continue if expected of us.  However, the more
 // educated thing to do, for apps that actually care about this, would be to
 // call the app code first and let it validate the headers.
-pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64) 
+pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: usize) 
         -> Result<WebRequest, Error> {
     let mut req_buffer = Vec::<u8>::with_capacity(4096);
     let req_size = try!(read_until_headers_end(&mut req_buffer, stream));
@@ -72,12 +72,11 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: u64)
 
         println!("body size: {} bytes", clen);
 
-        if clen > max_size {
+        if clen > max_size as u64 {
             return Err(Error::TooLarge);
         }
 
         // Cast it down, as we read in memory
-        assert!(clen < std::usize::MAX as u64);
         let clen = clen as usize;
 
         // Send 100-continue if needed
