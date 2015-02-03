@@ -456,9 +456,11 @@ fn send_response(stream: &mut Writer,
     // Send the body unless it was a HEAD request.
     // HTTP HEAD is so retarded because you can't see error bodies.
     let mut send_body = true;
-    if request.is_some() && request.unwrap().method != "head" {
+    if request.is_some() && request.unwrap().method == "head" {
         send_body = false;
     }
-    let _ioret = stream.write(&*response.body);
+    if send_body {
+        let _ioret = stream.write(&*response.body);
+    }
 
 }
