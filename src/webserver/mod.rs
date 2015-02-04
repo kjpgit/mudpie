@@ -143,14 +143,16 @@ struct DispatchRule {
     page_fn: PageFunction
 }
 
+// All worker threads have read only access 
 struct WorkerSharedContext {
     rules: Vec<DispatchRule>,
-    acceptor: TcpAcceptor,
     max_request_body_size: usize,
 }
 
+// Private copy for each worker thread
 struct WorkerPrivateContext {
     shared_ctx: Arc<WorkerSharedContext>,
+    acceptor: TcpAcceptor,
 }
 
 
@@ -231,14 +233,13 @@ impl WebServer {
 
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
-            acceptor: acceptor,
             max_request_body_size: self.max_request_body_size,
         };
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", self.nr_threads);
         for _ in range(0, self.nr_threads) {
-            self.start_new_worker();
+            self.start_new_worker(&acceptor);
         }
 
         println!("starting monitor loop");
@@ -246,13 +247,14 @@ impl WebServer {
             self.thread_pool.wait_for_thread_exit();
             println!("uh oh, a worker thread died");
             println!("starting another worker");
-            self.start_new_worker();
+            self.start_new_worker(&acceptor);
         }
     }
 
-    fn start_new_worker(&mut self) {
+    fn start_new_worker(&mut self, acceptor: &TcpAcceptor) {
         let priv_ctx = WorkerPrivateContext {
             shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
+            acceptor: acceptor.clone(),
         };
         self.thread_pool.execute(move || {
             worker_thread_main(priv_ctx);
@@ -273,9 +275,9 @@ impl WebServer {
 
 
 fn worker_thread_main(ctx: WorkerPrivateContext) {
-    let mut acceptor = ctx.shared_ctx.acceptor.clone();
+    let mut ctx = ctx;
     loop {
-        let res = acceptor.accept();
+        let res = ctx.acceptor.accept();
         match res {
             Ok(sock) => process_http_connection(&ctx, sock),
             Err(err) => println!("socket error :-( {}", err)
