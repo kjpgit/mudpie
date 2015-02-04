@@ -235,6 +235,8 @@ impl WebServer {
             rules: page_fn_copy,
             max_request_body_size: self.max_request_body_size,
         };
+
+        // We hold a reference to this, in case threads die and need restart
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", self.nr_threads);
@@ -291,7 +293,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     let mut stream = stream;
 
     // Read full request (headers and body)
-    let req = match read_request::read_request(&mut stream,
+    let mut req = match read_request::read_request(&mut stream,
             ctx.shared_ctx.max_request_body_size) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
@@ -327,6 +329,9 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
         },
         Ok(req) => req,
     };
+
+    // Add socket specific attributes 
+    add_socket_info(&mut req, &mut stream); 
 
     // Do routing
     let ret = do_routing(ctx, &req);
@@ -382,6 +387,18 @@ impl Drop for HTTPConnectionSentinel {
             write_response(&mut self.stream, Some(&self.request), &resp);
         }
     }
+}
+
+
+// Add remote_address and local_address attributes
+// No idea why we need a &mut to call peer_name/socket_name
+fn add_socket_info(req: &mut WebRequest, stream: &mut TcpStream) {
+    let remote_addr = stream.peer_name().unwrap();
+    let val = format!("{}", remote_addr);
+    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
+    let local_addr = stream.socket_name().unwrap();
+    let val = format!("{}", local_addr);
+    req.environ.insert(b"local_address".to_vec(), val.as_bytes().to_vec());
 }
 
 
