@@ -31,12 +31,14 @@ to monitor the worker threads.  A higher level watchdog process should monitor
 and restart the {app} process if it exits due to out of memory or double panic.
 
 Each worker thread runs an independent connection processing loop, which calls
-+accept()+ on its own copy of the listening socket.  The main thread is not
-bothered and there is no overhead of context switching between threads.  Also,
-there is no "bufferbloat" of connections piling up in a queue.
++accept()+.  The main thread is not bothered and there is no overhead of
+context switching between threads.  Also, there is no "bufferbloat" of
+connections piling up in a queue.
 
-NOTE: On Linux kernels >= 3.9, the SO_REUSEPORT option could be used for even
-more scalable processing.  Shared-nothing threads are "the new prefork".
+NOTE: Calling `accept()` in parallel is fine as long as you only have a single
+listening socket to monitor.  If you had to use `select()` to multiplex, you'd
+have a thundering herd problem.  So it pays to be simple and design your server
+to have a single port.  See also the SO_REUSEPORT option on Linux/BSD.
 
 If a worker thread panics while running a handler function, it will attempt to
 send a `500 Internal Error` response.  Then the worker thread will be
