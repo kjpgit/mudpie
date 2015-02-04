@@ -1,9 +1,10 @@
+use std;
 use super::{WebRequest, WebResponse};
 
 // Send response headers and body.
 // Body will not be sent if the request was a HEAD request.
-// Headers will be sent as UTF-8 bytes, but you need to stay in ASCII range to
-// be safe.
+// Headers will be sent as UTF-8 bytes, but you need to stay in ASCII/Latin-1
+// range to be safe.
 pub fn write_response(stream: &mut Writer, 
         request: Option<&WebRequest>, 
         response: &WebResponse) {
@@ -33,9 +34,17 @@ pub fn write_response(stream: &mut Writer,
     }
     resp.push_str("\r\n");
 
-    // TODO: log any IO errors when writing the response.
-    // Note that this still doesn't guarantee the client got the data.
-    let _ioret = stream.write_str(&*resp);
+    // Note that success still doesn't guarantee the client got the data.
+    // TODO: Rust seems to have a bug and not report an error on EPIPE.
+    // Wait until std::io settles down and reproduce it.
+    let ioret = stream.write(resp.as_bytes());
+    if ioret.is_err() {
+        println!("error sending response headers: {}", 
+            ioret.err().unwrap());
+        return;
+    }
+
+    //std::old_io::timer::sleep(std::time::duration::Duration::seconds(4));
 
     // Send the body unless it was a HEAD request.
     // HTTP HEAD is so retarded because you can't see error bodies.
@@ -45,6 +54,12 @@ pub fn write_response(stream: &mut Writer,
     }
     if send_body {
         let _ioret = stream.write(&*response.body);
+        if ioret.is_err() {
+            println!("error sending response body: {}", 
+                ioret.err().unwrap());
+            return;
+        } else {
+            //println!("ok sending response body");
+        }
     }
-
 }
