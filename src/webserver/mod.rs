@@ -152,6 +152,8 @@ struct WorkerSharedContext {
 // Private copy for each worker thread
 struct WorkerPrivateContext {
     shared_ctx: Arc<WorkerSharedContext>,
+    // TODO: when std::io is finalized, use a single listener socket in
+    // parallel accept mode.
     acceptor: TcpAcceptor,
 }
 
