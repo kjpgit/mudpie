@@ -27,8 +27,7 @@ of which still can't handle this).
 == Threading
 
 {app} has one main thread and N worker threads.  The main thread's only job is
-to monitor the worker threads.  A higher level watchdog process should monitor
-and restart the {app} process if it exits due to out of memory or double panic.
+to monitor the worker threads.  
 
 Each worker thread runs an independent connection processing loop, which calls
 +accept()+.  The main thread is not bothered and there is no overhead of
@@ -50,14 +49,17 @@ variable is used), and then spawn a replacement worker thread.
 
 If the main thread panics (e.g. because spawning a new worker fails), or a
 double panic happens in a worker thread, the entire process will abort.  This
-is standard Rust behavior.
+is standard Rust behavior.  A higher level watchdog process should monitor and
+restart the {app} process if needed.
+
 
 
 == SSL / TLS
 
 Supporting SSL/TLS is on the roadmap, however {app} will not require a
 dependency on any external library; such functionality will be optional.  {app}
-should be able to use any object that exposes a Reader+Writer trait.
+should be able to use any object that exposes a Reader+Writer trait and can
+wrap a socket.
 
 
 == Request Routing
@@ -69,7 +71,8 @@ deemed to be application specific.
 
 == Other Protocol Notes
 
-Repeated header names are supported; values are joined in order by ",".
+Repeated header names are in requests are supported; values are joined in order
+by ",".
 
 Chunked requests are not supported; a 411 error is returned.
 
