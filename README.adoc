@@ -46,8 +46,8 @@ fn main() {
 
 * The link:src/bin/demo.rs[Demo Program] shows example usage
 
-* The link:http://www.rust-ci.org/kjpgit/mudpie/nightly/doc/mudpie/[Rust API
-  Docs] 
+* The link:http://www.rust-ci.org/kjpgit/mudpie/nightly/doc/mudpie/[Mudpie
+  Crate API Docs] 
 
 * The link:manual.adoc[Manual] has gory architecture and protocol details
 
