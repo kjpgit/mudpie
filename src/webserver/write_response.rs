@@ -10,13 +10,19 @@ pub fn write_response(stream: &mut Writer,
     println!("sending response: code={}, body_length={}",
             response.code, response.body.len());
 
-    // TODO: respond with http/1.0 to a 1.0 request
+    // Respond with the max version the client requested
+    let mut protocol = "HTTP/1.1";
+    if request.is_some() && 
+            &**request.unwrap().environ.get(b"protocol").unwrap() 
+            == b"http/1.0" {
+        protocol = "HTTP/1.0";
+    }
+
     let mut resp = String::new();
-    resp.push_str(&*format!("HTTP/1.1 {} {}\r\n", 
-                response.code, 
-                response.status));
+    resp.push_str(&*format!("{} {} {}\r\n", 
+                protocol, response.code, response.status));
     resp.push_str("Connection: close\r\n");
-    resp.push_str(&*format!("Content-length: {}\r\n", 
+    resp.push_str(&*format!("Content-Length: {}\r\n", 
                 response.body.len()));
 
     for (k, v) in response.headers.iter() {
