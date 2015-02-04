@@ -11,7 +11,7 @@ sizes, this should be sufficient.
 
 NOTE: The HTTP spec recommends servers read the entire request body, even when
 returning an error, due to problems with TCP resets during connection close
-footnote: https://tools.ietf.org/html/rfc7230#section-6.6.  So it's actually
+footnote:[https://tools.ietf.org/html/rfc7230#section-6.6].  So it's actually
 counter productive to defer reading the request body.
 
 {app} automatically handles the `Expect: 100-continue` header by sending a 100
