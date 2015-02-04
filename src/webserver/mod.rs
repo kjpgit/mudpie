@@ -225,7 +225,7 @@ impl WebServer {
     pub fn run(&mut self, address: &str, port: i32) {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
-        let listener = TcpListener::bind(&*addr);
+        let listener = TcpListener::bind(&*addr).unwrap();
         let acceptor = listener.listen().unwrap();
         
         // .clone doesn't work, compiler bug
