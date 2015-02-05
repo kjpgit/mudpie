@@ -1,4 +1,6 @@
-#![allow(unstable)]
+#![feature(core)]
+#![feature(env)]
+#![feature(os)]
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
 use mudpie::html_element_escape;
@@ -140,14 +142,15 @@ fn main() {
 
     //svr.set_max_request_body_size(10);
 
-    let args = std::os::args();
+    let mut args = Vec::new();
+    args.extend(std::env::args());
     let mut addr = "127.0.0.1";
     let mut port = 8000;
     if args.len() > 1 {
-        addr = &*args[1];
+        addr = (&*args[1]).to_str().unwrap();
     }
     if args.len() > 2 {
-        port = args[2].parse::<i32>().unwrap();
+        port = (&*args[2]).to_str().unwrap().parse::<i32>().unwrap();
     }
 
     // Start worker threads and serve content

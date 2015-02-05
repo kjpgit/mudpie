@@ -275,7 +275,7 @@ impl WebServer {
 
     // returns methods in lowercase
     fn parse_methods(methods: &str) -> Vec<String> {
-        let mut parts = methods.split_str(",");
+        let parts = methods.split_str(",");
         let mut ret = Vec::new();
         for p in parts {
             let method = p.trim().to_string().into_ascii_lowercase();

@@ -13,7 +13,7 @@ pub struct Request {
 }
 
 
-#[derive(Show)]
+#[derive(Debug)]
 #[derive(PartialEq)]
 pub enum ParseError {
     BadRequestLine,
