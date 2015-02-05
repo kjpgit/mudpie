@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::old_io::{TcpListener, TcpStream};
 use std::old_io::net::tcp::TcpAcceptor;
@@ -48,7 +47,7 @@ impl WebResponse {
     /// ```
     pub fn new_html(body: String) -> WebResponse {
         let mut ret = WebResponse::new();   
-        ret.set_body(body.into_bytes());
+        ret.set_body_str(&body[]);
         ret.set_header("Content-Type", "text/html; charset=utf-8");
         return ret;
     }
@@ -61,18 +60,18 @@ impl WebResponse {
     }
 
     /// Set the response body
-    pub fn set_body(&mut self, body: Vec<u8>) {
-        self.body = body;
+    pub fn set_body(&mut self, body: &[u8]) {
+        self.body = body.to_vec();
     }
 
     /// Set the response body as the UTF-8 encoded bytes from `body`.
     /// Equivalent to set_body(body.as_bytes())
     pub fn set_body_str(&mut self, body: &str) {
-        self.body = body.as_bytes().to_vec();
+        self.set_body(body.as_bytes());
     }
 
     /// Set a response header.  If it already exists, it will be overwritten.
-    /// Header names and values should use ASCII characters only.
+    /// Header names and values should use ASCII/Latin1 characters only.
     pub fn set_header(&mut self, name: &str, value: &str) {
         self.headers.insert(name.to_string(), value.to_string());
     }
@@ -97,7 +96,10 @@ impl WebRequest {
     /// * method = "get", "head", "options", ... 
     /// * path = "/full/path"
     /// * query_string = "k=v&k2=v2" or "" (empty)
-    /// * http_xxx = "Header Value".  Example: http_user-agent = "Mozilla Firefox"
+    /// * http_xxx = "Header Value".  ex: http_user-agent = "Mozilla Firefox"
+    ///
+    /// * remote_address = remote/client IP and port, ex: "1.1.1.1:1234"
+    /// * local_address = local/server IP and port
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
@@ -160,6 +162,9 @@ struct WorkerPrivateContext {
 
 /// Processes HTTP requests
 pub struct WebServer {
+    // Note: We have Options here because this class owns objects during
+    // initialization time, but then moves them into the (read only)
+    // WorkerSharedContext right before starting threads.
     nr_threads: i32,
     rules: Option<Vec<DispatchRule>>,
     thread_pool: ThreadPool,
@@ -191,35 +196,36 @@ impl WebServer {
         self.max_request_body_size = size;
     }
 
-    /// Add an exact match rule
+    /// Add an exact path match rule
     /// 
-    /// methods: comma separated list of methods
-
+    /// methods: comma separated list of HTTP methods (GET, HEAD, PUT, etc.)
+    ///
+    /// path: The path component of a URL.  Must start with a '/', except for
+    /// OPTIONS requests which can use '*'.
     pub fn add_path(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
             is_prefix: false,
             page_fn: page_fn,
             methods: WebServer::parse_methods(methods),
         };
-        fn_map.push(rule);
+        let rules = self.rules.as_mut().unwrap();
+        rules.push(rule);
     }
 
-    /// Add a prefix match rule
-    /// 
-    /// methods: comma separated list of methods
+    /// Add a prefix path match rule.  Like `add_path`, but matches anything
+    /// beginning with `path`.
     pub fn add_path_prefix(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
             is_prefix: true,
             page_fn: page_fn,
             methods: WebServer::parse_methods(methods),
         };
-        fn_map.push(rule);
+        let rules = self.rules.as_mut().unwrap();
+        rules.push(rule);
     }
 
     /// Starts worker threads and enters supervisor loop.  If any worker
@@ -230,15 +236,17 @@ impl WebServer {
         let listener = TcpListener::bind(&*addr).unwrap();
         let acceptor = listener.listen().unwrap();
         
-        // .clone doesn't work, compiler bug
+        // .clone doesn't work, compiler bug.
+        // Oh well, moving it saves memory anyway
         let page_fn_copy = self.rules.take().unwrap();
 
+        // Create a read-only context all worker threads can use
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
             max_request_body_size: self.max_request_body_size,
         };
 
-        // We hold a reference to this, in case threads die and need restart
+        // We hold a reference too, in case threads die and need restart
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", self.nr_threads);
@@ -411,6 +419,7 @@ enum RoutingResult {
 }
 
 fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
+    use std::collections::HashSet;
     let mut found_path_match = false;
     let mut found_methods = HashSet::<&str>::new();
     for rule in ctx.shared_ctx.rules.iter() {
