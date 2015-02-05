@@ -83,7 +83,7 @@ pub fn read_request<T: Reader+Writer>(stream: &mut T, max_size: usize)
         if needs_100_continue(&req) {
             println!("sending 100 continue");
             let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
-            try!(stream.write(cont));
+            try!(stream.write_all(cont));
         }
 
         // Start one new buffer, so we don't copy when done

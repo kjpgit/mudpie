@@ -37,7 +37,7 @@ pub fn write_response(stream: &mut Writer,
     // Note that success still doesn't guarantee the client got the data.
     // TODO: Rust seems to have a bug and not report an error on EPIPE.
     // Wait until std::io settles down and reproduce it.
-    let ioret = stream.write(resp.as_bytes());
+    let ioret = stream.write_all(resp.as_bytes());
     if ioret.is_err() {
         println!("error sending response headers: {}", 
             ioret.err().unwrap());
@@ -53,7 +53,7 @@ pub fn write_response(stream: &mut Writer,
         send_body = false;
     }
     if send_body {
-        let _ioret = stream.write(&*response.body);
+        let _ioret = stream.write_all(&*response.body);
         if ioret.is_err() {
             println!("error sending response body: {}", 
                 ioret.err().unwrap());
