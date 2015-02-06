@@ -13,9 +13,7 @@ protocol.
 dependencies.  It is intended to be reliable and easy to audit for security,
 especially for embedded applications.
 
-NOTE: The {app} `master` branch is for Rust 1.0.0-alpha.  The {app} `nightly`
-branch might work on the (rapidly changing) nightly Rust, but I don't have a
-lot of time to spend tracking changes until Rust 1.0.0-beta hits.
+NOTE: The {app} `master` branch is for Rust nightly.  
 
 
 == Try it out
@@ -49,7 +47,7 @@ fn main() {
 * The link:http://www.rust-ci.org/kjpgit/mudpie/nightly/doc/mudpie/[Mudpie
   Crate API Docs] 
 
-* The link:manual.adoc[Manual] has gory architecture and protocol details
+* The link:Manual.adoc[Manual] has gory architecture and protocol details
 
 
 == License

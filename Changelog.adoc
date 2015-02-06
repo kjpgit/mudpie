@@ -12,6 +12,7 @@
 * HEAD works properly
 * respond with 1.0 to 1.0 requests
 * add remote_address/local_address vars
+* support rust nightly
 
 == 0.1.0
 
