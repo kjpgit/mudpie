@@ -1,0 +1,83 @@
+= Mudpie Manual
+
+:app: Mudpie
+
+== Request Handling
+
+{app} is a simple HTTP 1.0/1.1 server that does basic request/response
+handling.  It uses a simplex model, meaning the entire request and body is read
+before calling the handler function.  For applications with modest message
+sizes, this should be sufficient.  
+
+NOTE: The HTTP spec recommends servers read the entire request body, even when
+returning an error, due to problems with TCP resets during connection close
+footnote:[https://tools.ietf.org/html/rfc7230#section-6.6].  So it's actually
+counter productive to defer reading the request body.
+
+{app} automatically handles the `Expect: 100-continue` header by sending a 100
+response as long as the `Content-Length` was less then the configured maximum
+request body size.  {app} does not currently expose a callback for application
+code to override this.  
+
+NOTE: The 100-continue protocol is yet another misfeature of HTTP, and should /
+could have been solved by just using GET/POST on a separate `?preflight`
+resource, and not breaking most of the existing HTTP servers in the world (some
+of which still can't handle this).
+
+== Threading
+
+{app} has one main thread and N worker threads.  The main thread's only job is
+to monitor the worker threads.  
+
+Each worker thread runs an independent connection processing loop, which calls
++accept()+.  The main thread is not bothered and there is no overhead of
+context switching between threads.  Also, there is no "bufferbloat" of
+connections piling up in a queue.
+
+NOTE: Calling `accept()` in parallel is fine as long as you only have a single
+listening socket to monitor.  If you had to use `select()` to multiplex, you'd
+have a thundering herd problem.  So it pays to be simple and design your server
+to have a single port.  See also the SO_REUSEPORT option on Linux/BSD
+footnote:[http://lwn.net/Articles/542629/].
+
+If a worker thread panics while running a handler function, it will attempt to
+send a `500 Internal Error` response.  Then the worker thread will be
+destroyed.
+
+The main thread will notice a dead worker thread immediately (a condition
+variable is used), and then spawn a replacement worker thread.
+
+If the main thread panics (e.g. because spawning a new worker fails), or a
+double panic happens in a worker thread, the entire process will abort.  This
+is standard Rust behavior.  A higher level watchdog process should monitor and
+restart the {app} process if needed.
+
+
+
+== SSL / TLS
+
+Supporting SSL/TLS is on the roadmap, however {app} will not require a
+dependency on any external library; such functionality will be optional.  {app}
+should be able to use any object that exposes a Reader+Writer trait and can
+wrap a socket.
+
+
+== Request Routing
+
+{app} has a simple goal: route paths or path prefixes to user-specified
+processing functions.  Fancier processing (regexes, etc.) is a non-goal and is
+deemed to be application specific.
+
+
+== Other Protocol Notes
+
+Repeated header names are in requests are supported; values are joined in order
+by ",".
+
+Chunked requests are not supported; a 411 error is returned.
+
+Pipelining is not supported; the connection will be closed.  Yet another HTTP
+misfeature that interacts badly with errors, connection close, and TCP reset.
+
+Content-Length is always currently set for responses; a roadmap item would be
+not to do that if the hander set a custom Transfer-Encoding.

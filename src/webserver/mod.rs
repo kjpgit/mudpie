@@ -1,16 +1,17 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::sync::Arc;
-use std::io::{TcpListener, TcpStream};
-use std::io::net::tcp::TcpAcceptor;
-use std::io::{Acceptor, Listener};
+use std::old_io::{TcpListener, TcpStream};
+use std::old_io::net::tcp::TcpAcceptor;
+use std::old_io::{Acceptor, Listener};
 use std::ascii::OwnedAsciiExt;
 
 use utils::threadpool::ThreadPool;
+use self::write_response::write_response;
 
 mod read_request;
+mod write_response;
 
-static MAX_REQUEST_BODY_SIZE: u64 = 1_000_000_000;
+static DEFAULT_MAX_REQUEST_BODY_SIZE: usize = 1_000_000;
 
 
 /// A response that will be sent to the client (code, headers, body)
@@ -37,30 +38,40 @@ impl WebResponse {
     }
 
     /// Shortcut for creating a successful Unicode HTML response.
+    ///
+    /// This is equivalent to: 
+    ///
+    /// ```ignore
+    /// set_body_str(body)
+    /// set_header("Content-Type", "text/html; charset=utf-8");
+    /// ```
     pub fn new_html(body: String) -> WebResponse {
         let mut ret = WebResponse::new();   
-        ret.set_body(body.into_bytes());
+        ret.set_body_str(&body[]);
         ret.set_header("Content-Type", "text/html; charset=utf-8");
         return ret;
     }
 
-    /// Set the HTTP status code and message
+    /// Set the HTTP status code and message.  The message should contain ASCII
+    /// characters only.
     pub fn set_code(&mut self, code: i32, status: &str) {
         self.code = code;
         self.status = status.to_string();
     }
 
     /// Set the response body
-    pub fn set_body(&mut self, body: Vec<u8>) {
-        self.body = body;
+    pub fn set_body(&mut self, body: &[u8]) {
+        self.body = body.to_vec();
     }
 
-    /// Set the response body as utf-8 bytes
+    /// Set the response body as the UTF-8 encoded bytes from `body`.
+    /// Equivalent to set_body(body.as_bytes())
     pub fn set_body_str(&mut self, body: &str) {
-        self.body = body.as_bytes().to_vec();
+        self.set_body(body.as_bytes());
     }
 
     /// Set a response header.  If it already exists, it will be overwritten.
+    /// Header names and values should use ASCII/Latin1 characters only.
     pub fn set_header(&mut self, name: &str, value: &str) {
         self.headers.insert(name.to_string(), value.to_string());
     }
@@ -73,7 +84,7 @@ pub struct WebRequest {
     environ: HashMap<Vec<u8>, Vec<u8>>,
     path: String,
     method: String,
-    body: Option<Vec<u8>>,
+    body: Vec<u8>,
 }
 
 impl WebRequest {
@@ -84,11 +95,17 @@ impl WebRequest {
     /// * protocol = "http/1.0" or "http/1.1"
     /// * method = "get", "head", "options", ... 
     /// * path = "/full/path"
-    /// * query_string = "k=v&k2=v2" or ""
-    /// * http_xxx = "Header Value" 
+    /// * query_string = "k=v&k2=v2" or "" (empty)
+    /// * http_xxx = "Header Value".  ex: http_user-agent = "Mozilla Firefox"
+    ///
+    /// * remote_address = remote/client IP and port, ex: "1.1.1.1:1234"
+    /// * local_address = local/server IP and port
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
+    /// 
+    /// If the same header name was repeated in the request, the values will be
+    /// concatenated, in order received, separated by a comma.
     pub fn get_environ(&self) -> &HashMap<Vec<u8>, Vec<u8>> {
         return &self.environ;
     }
@@ -108,12 +125,10 @@ impl WebRequest {
         return &*self.method;
     }
 
-    /// The request body, or None if one wasn't sent
-    pub fn get_body(&self) -> Option<&[u8]> {
-        match self.body {
-            Some(ref body) => Some(&**body),
-            None => None
-        }
+    /// The request body.  Note that HTTP requests do not distinguish a null vs
+    /// 0 length body, so this no longer returns an Option.
+    pub fn get_body(&self) -> &[u8] {
+        return &*self.body;
     }
 }
 
@@ -130,22 +145,31 @@ struct DispatchRule {
     page_fn: PageFunction
 }
 
+// All worker threads have read only access 
 struct WorkerSharedContext {
     rules: Vec<DispatchRule>,
-    acceptor: TcpAcceptor,
+    max_request_body_size: usize,
 }
 
+// Private copy for each worker thread
 struct WorkerPrivateContext {
     shared_ctx: Arc<WorkerSharedContext>,
+    // TODO: when std::io is finalized, use a single listener socket in
+    // parallel accept mode.
+    acceptor: TcpAcceptor,
 }
 
 
 /// Processes HTTP requests
 pub struct WebServer {
+    // Note: We have Options here because this class owns objects during
+    // initialization time, but then moves them into the (read only)
+    // WorkerSharedContext right before starting threads.
     nr_threads: i32,
     rules: Option<Vec<DispatchRule>>,
     thread_pool: ThreadPool,
     worker_shared_context: Option<Arc<WorkerSharedContext>>,
+    max_request_body_size: usize,
 }
 
 impl WebServer {
@@ -155,6 +179,7 @@ impl WebServer {
                 rules: Some(Vec::new()),
                 thread_pool: ThreadPool::new(),
                 worker_shared_context: None,
+                max_request_body_size: DEFAULT_MAX_REQUEST_BODY_SIZE,
             };
         return ret;
     }
@@ -165,35 +190,42 @@ impl WebServer {
         self.nr_threads = n;
     }
 
-    /// Add an exact match rule
-    /// 
-    /// methods: comma separated list of methods
+    /// Set the maximum request body size.  Larger requests will generate 
+    /// a 413 error.
+    pub fn set_max_request_body_size(&mut self, size: usize) {
+        self.max_request_body_size = size;
+    }
 
+    /// Add an exact path match rule
+    /// 
+    /// methods: comma separated list of HTTP methods (GET, HEAD, PUT, etc.)
+    ///
+    /// path: The path component of a URL.  Must start with a '/', except for
+    /// OPTIONS requests which can use '*'.
     pub fn add_path(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
             is_prefix: false,
             page_fn: page_fn,
             methods: WebServer::parse_methods(methods),
         };
-        fn_map.push(rule);
+        let rules = self.rules.as_mut().unwrap();
+        rules.push(rule);
     }
 
-    /// Add a prefix match rule
-    /// 
-    /// methods: comma separated list of methods
+    /// Add a prefix path match rule.  Like `add_path`, but matches anything
+    /// beginning with `path`.
     pub fn add_path_prefix(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let fn_map = self.rules.as_mut().unwrap();
         let rule = DispatchRule { 
             path: path.to_string(), 
             is_prefix: true,
             page_fn: page_fn,
             methods: WebServer::parse_methods(methods),
         };
-        fn_map.push(rule);
+        let rules = self.rules.as_mut().unwrap();
+        rules.push(rule);
     }
 
     /// Starts worker threads and enters supervisor loop.  If any worker
@@ -201,21 +233,25 @@ impl WebServer {
     pub fn run(&mut self, address: &str, port: i32) {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
-        let listener = TcpListener::bind(&*addr);
+        let listener = TcpListener::bind(&*addr).unwrap();
         let acceptor = listener.listen().unwrap();
         
-        // .clone doesn't work, compiler bug
+        // .clone doesn't work, compiler bug.
+        // Oh well, moving it saves memory anyway
         let page_fn_copy = self.rules.take().unwrap();
 
+        // Create a read-only context all worker threads can use
         let ctx = WorkerSharedContext {
             rules: page_fn_copy,
-            acceptor: acceptor,
+            max_request_body_size: self.max_request_body_size,
         };
+
+        // We hold a reference too, in case threads die and need restart
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", self.nr_threads);
         for _ in range(0, self.nr_threads) {
-            self.start_new_worker();
+            self.start_new_worker(&acceptor);
         }
 
         println!("starting monitor loop");
@@ -223,13 +259,14 @@ impl WebServer {
             self.thread_pool.wait_for_thread_exit();
             println!("uh oh, a worker thread died");
             println!("starting another worker");
-            self.start_new_worker();
+            self.start_new_worker(&acceptor);
         }
     }
 
-    fn start_new_worker(&mut self) {
+    fn start_new_worker(&mut self, acceptor: &TcpAcceptor) {
         let priv_ctx = WorkerPrivateContext {
             shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
+            acceptor: acceptor.clone(),
         };
         self.thread_pool.execute(move || {
             worker_thread_main(priv_ctx);
@@ -238,10 +275,11 @@ impl WebServer {
 
     // returns methods in lowercase
     fn parse_methods(methods: &str) -> Vec<String> {
-        let mut parts = methods.split_str(",");
+        let parts = methods.split_str(",");
         let mut ret = Vec::new();
         for p in parts {
-            ret.push(p.to_string().into_ascii_lowercase());
+            let method = p.trim().to_string().into_ascii_lowercase();
+            ret.push(method);
         }
         return ret;
     }
@@ -249,9 +287,9 @@ impl WebServer {
 
 
 fn worker_thread_main(ctx: WorkerPrivateContext) {
-    let mut acceptor = ctx.shared_ctx.acceptor.clone();
+    let mut ctx = ctx;
     loop {
-        let res = acceptor.accept();
+        let res = ctx.acceptor.accept();
         match res {
             Ok(sock) => process_http_connection(&ctx, sock),
             Err(err) => println!("socket error :-( {}", err)
@@ -262,57 +300,115 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 
 // HTTP specific socket processing
 fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
-    let mut sentinel = HTTPConnectionSentinel { 
-        stream: stream, 
-        started_response: false 
-    };
+    let mut stream = stream;
 
-    // Read the request (headers only, not body yet)
-    let req = match read_request::read_request(&mut sentinel.stream,
-            MAX_REQUEST_BODY_SIZE) {
+    // Read full request (headers and body)
+    let mut req = match read_request::read_request(&mut stream,
+            ctx.shared_ctx.max_request_body_size) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
             resp.set_body_str("Error 400: Bad Request");
-            sentinel.send_response(&resp);
+            write_response(&mut stream, None, &resp);
+            return;
+        },
+        Err(read_request::Error::LengthRequired) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(411, "Length Required");
+            resp.set_body_str("Error 411: Length Required");
+            write_response(&mut stream, None, &resp);
+            return;
+        },
+        Err(read_request::Error::InvalidVersion) => {
+            let mut resp = WebResponse::new();
+            resp.set_code(505, "Version not Supported");
+            resp.set_body_str("Error 505: Version not Supported");
+            write_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::TooLarge) => {
             let mut resp = WebResponse::new();
             resp.set_code(413, "Request Entity Too Large");
             resp.set_body_str("Error 413: Request Entity Too Large");
-            sentinel.send_response(&resp);
+            write_response(&mut stream, None, &resp);
             return;
         },
         Err(read_request::Error::IoError(e)) => {
             println!("IoError during request: {}", e);
-            sentinel.started_response = true; // we're done
             return;
         },
         Ok(req) => req,
     };
 
+    // Add socket specific attributes 
+    add_socket_info(&mut req, &mut stream); 
+
     // Do routing
     let ret = do_routing(ctx, &req);
-    let mut response;
-    match ret {
-        RoutingResult::FoundRule(page_fn) => {
-            response = (page_fn)(&req);
-        }
+    let page_fn = match ret {
+        RoutingResult::FoundRule(page_fn) => page_fn,
         RoutingResult::NoPathMatch => {
-            response = WebResponse::new();
-            response.set_code(404, "Not Found");
-            response.set_body_str("Error 404: Resource not found");
+            let mut resp = WebResponse::new();
+            resp.set_code(404, "Not Found");
+            resp.set_body_str("Error 404: Resource not found");
+            write_response(&mut stream, Some(&req), &resp);
+            return;
         }
         RoutingResult::NoMethodMatch(methods) => {
-            response = WebResponse::new();
-            response.set_code(405, "Method not allowed");
-            response.set_body_str("Error 405: Method not allowed");
+            let mut resp = WebResponse::new();
+            resp.set_code(405, "Method not allowed");
+            resp.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
-            response.set_header("Allow", &*methods_joined);
+            resp.set_header("Allow", &*methods_joined);
+            write_response(&mut stream, Some(&req), &resp);
+            return;
+        }
+    };
+
+
+    // Run the handler.  If it panics, the sentinel will send a 500.
+    let mut sentinel = HTTPConnectionSentinel { 
+        request: req,
+        stream: stream, 
+        armed: true 
+    };
+    let response = (page_fn)(&sentinel.request);
+    sentinel.armed = false;
+    write_response(&mut sentinel.stream, 
+        Some(&sentinel.request),
+        &response);
+}
+
+
+// A sentinel that sends a 500 error unless armed=false
+struct HTTPConnectionSentinel {
+    stream: TcpStream,
+    armed: bool,
+    request: WebRequest,
+}
+
+impl Drop for HTTPConnectionSentinel {
+    /// If we paniced and/or are about to die, make sure client gets a 500
+    fn drop(&mut self) {
+        if self.armed {
+            let mut resp = WebResponse::new();
+            resp.set_code(500, "Uh oh :-(");
+            resp.set_body_str("Error 500: Internal error in handler function");
+            write_response(&mut self.stream, Some(&self.request), &resp);
         }
     }
-    sentinel.send_response(&response);
+}
+
+
+// Add remote_address and local_address attributes
+// No idea why we need a &mut to call peer_name/socket_name
+fn add_socket_info(req: &mut WebRequest, stream: &mut TcpStream) {
+    let remote_addr = stream.peer_name().unwrap();
+    let val = format!("{}", remote_addr);
+    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
+    let local_addr = stream.socket_name().unwrap();
+    let val = format!("{}", local_addr);
+    req.environ.insert(b"local_address".to_vec(), val.as_bytes().to_vec());
 }
 
 
@@ -323,6 +419,7 @@ enum RoutingResult {
 }
 
 fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
+    use std::collections::HashSet;
     let mut found_path_match = false;
     let mut found_methods = HashSet::<&str>::new();
     for rule in ctx.shared_ctx.rules.iter() {
@@ -353,62 +450,4 @@ fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
     } else {
         return RoutingResult::NoPathMatch;
     }
-}
-
-
-// A sentinel that sends a 500 error unless started_response=True
-struct HTTPConnectionSentinel {
-    stream: TcpStream,
-    started_response: bool,
-}
-
-impl HTTPConnectionSentinel {
-    fn send_response(&mut self, response: &WebResponse) {
-        self.started_response = true;
-        send_response(&mut self.stream, response);
-    }
-}
-
-impl Drop for HTTPConnectionSentinel {
-    /// If we paniced and/or are about to die, make sure client gets a 500
-    fn drop(&mut self) {
-        if !self.started_response {
-            let mut resp = WebResponse::new();
-            resp.set_code(500, "Uh oh :-(");
-            resp.set_body_str("Error 500: Internal Error");
-            self.send_response(&resp);
-        }
-    }
-}
-
-
-// Send response headers and body
-// Headers will be sent as UTF-8 bytes, but you need to stay in ASCII range to
-// be safe.
-fn send_response(stream: &mut Writer, response: &WebResponse) {
-    println!("sending response: code={}, body_length={}",
-            response.code, response.body.len());
-
-    let mut resp = String::new();
-    resp.push_str(&*format!("HTTP/1.1 {} {}\r\n", 
-                response.code, 
-                response.status));
-    resp.push_str("Connection: close\r\n");
-    resp.push_str(&*format!("Content-length: {}\r\n", 
-                response.body.len()));
-
-    for (k, v) in response.headers.iter() {
-        resp.push_str(&**k);
-        resp.push_str(": ");
-        resp.push_str(&**v);
-        resp.push_str("\r\n");
-    }
-    resp.push_str("\r\n");
-
-    // TODO: log any IO errors when writing the response.
-    // Note that this still doesn't guarantee the client got the data.
-    let _ioret = stream.write_str(&*resp);
-    // TODO: don't send the body on a HEAD request, if we want 'automagic' HEAD
-    // support.
-    let _ioret = stream.write(&*response.body);
 }

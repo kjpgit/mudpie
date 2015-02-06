@@ -7,6 +7,11 @@
 * fix potential overrun in request body read
 * code: use &[i..j] ("new" slicing syntax)
 * code: use &* (Deref) instead of as_slice()
+* Send 411, 505
+* get_body does not return an Option any more
+* HEAD works properly
+* respond with 1.0 to 1.0 requests
+* add remote_address/local_address vars
 
 == 0.1.0
 

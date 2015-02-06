@@ -9,16 +9,13 @@
 awesome Rust language.  It is inspired by python's lean and elegant WSGI
 protocol.
 
-{app} is written in 100% safe Rust code (no unsafe blocks), so it should
-be quite reliable.   It has no dependencies.
-
-{app} is not intended to be a front end server.  A front end, like nginx,
-typically handles SSL termination and request/response buffering for slow
-clients, and is typically event-driven for scalability.  
+{app} is written in 100% safe Rust code (no unsafe blocks) and has no
+dependencies.  It is intended to be reliable and easy to audit for security,
+especially for embedded applications.
 
 NOTE: The {app} `master` branch is for Rust 1.0.0-alpha.  The {app} `nightly`
-branch might work on the nightly, but I don't have a lot of time to spend
-tracking changes until Rust 1.0.0-beta hits.
+branch might work on the (rapidly changing) nightly Rust, but I don't have a
+lot of time to spend tracking changes until Rust 1.0.0-beta hits.
 
 
 == Try it out
@@ -45,38 +42,14 @@ fn main() {
 }
 ----
 
+== More Information
 
-== Implementation
+* The link:src/bin/demo.rs[Demo Program] shows example usage
 
-{app} has one main thread and N worker threads.  The main thread's only job is
-to monitor the worker threads.  A higher level watchdog process, like systemd,
-should monitor and restart the {app} process if it exits due to out of memory
-or double panic (which should be very rare).
+* The link:http://www.rust-ci.org/kjpgit/mudpie/nightly/doc/mudpie/[Mudpie
+  Crate API Docs] 
 
-Each worker thread runs an independent connection processing loop, which calls
-+accept()+ on its own copy of the listening socket.  The main thread is not
-bothered and there is no overhead of context switching between threads.  Also,
-there is no "bufferbloat" of connections piling up in a queue.
-
-NOTE: On Linux kernels >= 3.9, the SO_REUSEPORT option could be used for even
-more scalable processing.  Shared-nothing threads are "the new prefork".
-
-If a worker thread panics, it will attempt to send a 500 Internal Error if a
-response had not yet been started.  Then the worker thread will be destroyed.
-
-The main thread will notice a dead worker thread immediately (a condition
-variable is used), and then spawn a replacement worker thread.
-
-If the main thread panics (e.g. because spawning a new worker fails), or a
-double panic happens in a worker thread, the entire process will abort.  This
-is standard Rust behavior.
-
-
-
-== Routing
-
-{app} has a simple goal: route path patterns to user-specified processing
-functions.  
+* The link:manual.adoc[Manual] has gory architecture and protocol details
 
 
 == License

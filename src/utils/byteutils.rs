@@ -209,6 +209,8 @@ fn test_percent_decode() {
     assert!(to_hexval(b'0').unwrap() == 0);
     assert!(to_hexval(b'3').unwrap() == 3);
     assert!(to_hexval(b'9').unwrap() == 9);
+    assert_eq!(percent_decode(b"%2"), b"%2");
+    assert_eq!(percent_decode(b"%20"), b" ");
     assert_eq!(percent_decode(b"/hi%20there%ff%00"), b"/hi there\xff\x00");
     assert_eq!(percent_decode(b"/%fe%01%"), b"/\xfe\x01%");
     assert_eq!(percent_decode(b"/%fg%zz"), b"/%fg%zz");

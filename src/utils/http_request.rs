@@ -13,9 +13,9 @@ pub struct Request {
 }
 
 
-#[derive(Show)]
+#[derive(Debug)]
 #[derive(PartialEq)]
-enum ParseError {
+pub enum ParseError {
     BadRequestLine,
     BadVersion,
     InvalidAbsolutePath,

@@ -1,10 +1,14 @@
-#![allow(unstable)]
+#![feature(core)]
+#![feature(env)]
+#![feature(os)]
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
+use mudpie::html_element_escape;
 
 // Example server program
 // Demonstrates use of the mudpie library
-// TODO: escape untrusted output strings
+// Usage: ./demo [address] [port]
+// Example: ./demo 0.0.0.0 8001
 
 
 // Add html and body tags
@@ -34,17 +38,15 @@ fn get_debug_info(req: &WebRequest) -> String {
     for pair in raw_environ.iter() {
         page.push_str("<tr>");
         page.push_str("<td>");
-        page.push_str(&*pair.0);
+        page.push_str(&*html_element_escape(&*pair.0));
         page.push_str("<td>");
-        page.push_str(&*pair.1);
+        page.push_str(&*html_element_escape(&*pair.1));
     }
     page.push_str("</table>");
     page.push_str("<h2>Request Body</h2>");
-    match req.get_body() {
-        Some(body) => page.push_str(
-            &*String::from_utf8_lossy(&*body).into_owned()),
-        None => page.push_str("n/a"),
-    }
+    let body = req.get_body();
+    let body = String::from_utf8_lossy(&*body).into_owned();
+    page.push_str(&*html_element_escape(&*body));
     return page;
 }
 
@@ -57,7 +59,7 @@ fn index_page(_req: &WebRequest) -> WebResponse {
 <dl>
 
 <dt><a href="/hello?foo=bar">/hello</a> 
-<dd>Hello page, shows Request Headers
+<dd>Hello page, shows Request Headers, outputs custom response header
 
 <dt><a href="/hello/some/resource">/hello/some/resource</a> 
 <dd>Anything under the "/hello/" prefix also works
@@ -128,9 +130,9 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
-    svr.add_path("Get", "/", index_page);
-    svr.add_path("get", "/hello", hello_page);
-    svr.add_path_prefix("get", "/hello/", hello_page);
+    svr.add_path("GET, HEAD", "/", index_page);
+    svr.add_path("get, head", "/hello", hello_page);
+    svr.add_path_prefix("get,head", "/hello/", hello_page);
     svr.add_path("get", "/panic", panic_page);
 
     svr.add_path("get", "/form_enter", form_enter);
@@ -138,6 +140,19 @@ fn main() {
 
     svr.add_path("put,options,foo", "/silly_methods", hello_page);
 
+    //svr.set_max_request_body_size(10);
+
+    let mut args = Vec::new();
+    args.extend(std::env::args());
+    let mut addr = "127.0.0.1";
+    let mut port = 8000;
+    if args.len() > 1 {
+        addr = (&*args[1]).to_str().unwrap();
+    }
+    if args.len() > 2 {
+        port = (&*args[2]).to_str().unwrap().parse::<i32>().unwrap();
+    }
+
     // Start worker threads and serve content
-    svr.run("127.0.0.1", 8000);
+    svr.run(addr, port);
 }
