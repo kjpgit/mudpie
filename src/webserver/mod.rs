@@ -3,13 +3,14 @@ use std::sync::Arc;
 use std::old_io::{TcpListener, TcpStream};
 use std::old_io::net::tcp::TcpAcceptor;
 use std::old_io::{Acceptor, Listener};
-use std::ascii::OwnedAsciiExt;
 
 use utils::threadpool::ThreadPool;
 use self::write_response::write_response;
+use self::router::{Router, RoutingResult};
 
 mod read_request;
 mod write_response;
+mod router;
 
 static DEFAULT_MAX_REQUEST_BODY_SIZE: usize = 1_000_000;
 
@@ -133,21 +134,13 @@ impl WebRequest {
 }
 
 
-
 /// The page handler function type 
 pub type PageFunction = fn(&WebRequest) -> WebResponse;
 
 
-struct DispatchRule {
-    path: String,
-    is_prefix: bool,
-    methods: Vec<String>,
-    page_fn: PageFunction
-}
-
 // All worker threads have read only access 
 struct WorkerSharedContext {
-    rules: Vec<DispatchRule>,
+    router: Router,
     max_request_body_size: usize,
 }
 
@@ -166,7 +159,7 @@ pub struct WebServer {
     // initialization time, but then moves them into the (read only)
     // WorkerSharedContext right before starting threads.
     nr_threads: i32,
-    rules: Option<Vec<DispatchRule>>,
+    router: Option<Router>,
     thread_pool: ThreadPool,
     worker_shared_context: Option<Arc<WorkerSharedContext>>,
     max_request_body_size: usize,
@@ -176,7 +169,7 @@ impl WebServer {
     pub fn new() -> WebServer {
         let ret = WebServer{
                 nr_threads: 10,
-                rules: Some(Vec::new()),
+                router: Some(Router::new()),
                 thread_pool: ThreadPool::new(),
                 worker_shared_context: None,
                 max_request_body_size: DEFAULT_MAX_REQUEST_BODY_SIZE,
@@ -204,28 +197,16 @@ impl WebServer {
     /// OPTIONS requests which can use '*'.
     pub fn add_path(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let rule = DispatchRule { 
-            path: path.to_string(), 
-            is_prefix: false,
-            page_fn: page_fn,
-            methods: WebServer::parse_methods(methods),
-        };
-        let rules = self.rules.as_mut().unwrap();
-        rules.push(rule);
+        self.router.as_mut().unwrap().add_path(
+                methods, path, page_fn, false);
     }
 
     /// Add a prefix path match rule.  Like `add_path`, but matches anything
     /// beginning with `path`.
     pub fn add_path_prefix(&mut self, methods: &str, path: &str, 
             page_fn: PageFunction) {
-        let rule = DispatchRule { 
-            path: path.to_string(), 
-            is_prefix: true,
-            page_fn: page_fn,
-            methods: WebServer::parse_methods(methods),
-        };
-        let rules = self.rules.as_mut().unwrap();
-        rules.push(rule);
+        self.router.as_mut().unwrap().add_path(
+                methods, path, page_fn, true);
     }
 
     /// Starts worker threads and enters supervisor loop.  If any worker
@@ -238,11 +219,11 @@ impl WebServer {
         
         // .clone doesn't work, compiler bug.
         // Oh well, moving it saves memory anyway
-        let page_fn_copy = self.rules.take().unwrap();
+        let router_moved = self.router.take().unwrap();
 
         // Create a read-only context all worker threads can use
         let ctx = WorkerSharedContext {
-            rules: page_fn_copy,
+            router: router_moved,
             max_request_body_size: self.max_request_body_size,
         };
 
@@ -273,16 +254,6 @@ impl WebServer {
         });
     }
 
-    // returns methods in lowercase
-    fn parse_methods(methods: &str) -> Vec<String> {
-        let parts = methods.split_str(",");
-        let mut ret = Vec::new();
-        for p in parts {
-            let method = p.trim().to_string().into_ascii_lowercase();
-            ret.push(method);
-        }
-        return ret;
-    }
 }
 
 
@@ -344,7 +315,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     add_socket_info(&mut req, &mut stream); 
 
     // Do routing
-    let ret = do_routing(ctx, &req);
+    let ret = ctx.shared_ctx.router.route(&req);
     let page_fn = match ret {
         RoutingResult::FoundRule(page_fn) => page_fn,
         RoutingResult::NoPathMatch => {
@@ -409,45 +380,4 @@ fn add_socket_info(req: &mut WebRequest, stream: &mut TcpStream) {
     let local_addr = stream.socket_name().unwrap();
     let val = format!("{}", local_addr);
     req.environ.insert(b"local_address".to_vec(), val.as_bytes().to_vec());
-}
-
-
-enum RoutingResult {
-    FoundRule(PageFunction),
-    NoPathMatch,
-    NoMethodMatch(Vec<String>),
-}
-
-fn do_routing(ctx: &WorkerPrivateContext, req: &WebRequest) -> RoutingResult {
-    use std::collections::HashSet;
-    let mut found_path_match = false;
-    let mut found_methods = HashSet::<&str>::new();
-    for rule in ctx.shared_ctx.rules.iter() {
-        let mut matched;
-        if rule.is_prefix {
-            matched = req.path.starts_with(&*rule.path);
-        } else {
-            matched = req.path == rule.path;
-        }
-        if matched {
-            found_path_match = true;
-            // Now check methods
-            for method in rule.methods.iter() {
-                found_methods.insert(&**method);
-                if *method == req.method {
-                    // Found a rule match
-                    return RoutingResult::FoundRule(rule.page_fn);
-                }
-            }
-        }
-    }
-    if found_path_match {
-        let mut methods = Vec::new();
-        for method in found_methods.iter() {
-            methods.push(method.to_string());
-        }
-        return RoutingResult::NoMethodMatch(methods);
-    } else {
-        return RoutingResult::NoPathMatch;
-    }
 }
