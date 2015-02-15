@@ -1,8 +1,14 @@
 = Changelog
 
+== 0.2.0
+
+* GenericSocket trait in prep for optional SSL support
+* TCP NoDelay on by default
+
 == 0.1.4
 
 * Use new std::io - a bit faster on accept() now due to no thundering herd
+* add /bench resource for performance testing
 
 == 0.1.1
 
