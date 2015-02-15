@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::net::{TcpListener, TcpStream, SocketAddr};
 
 use utils::threadpool::ThreadPool;
+use utils::genericsocket::GenericSocket;
 use self::write_response::write_response;
 use self::router::{Router, RoutingResult};
 
@@ -265,12 +266,15 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
 
 // HTTP specific socket processing
 fn process_http_connection(ctx: &WorkerPrivateContext, 
-        stream: TcpStream, peer_addr: SocketAddr) {
-    let mut stream = stream;
+        raw_stream: TcpStream, peer_addr: SocketAddr) {
 
     // Set nodelay.  We write headers then body,
     // and don't want to stall.
-    stream.set_nodelay(true).unwrap();
+    raw_stream.set_nodelay(true).unwrap();
+
+
+    // Now is where we could also wrap it with SSL.
+    let mut stream: Box<GenericSocket> = Box::new(raw_stream);
 
 
     // Read full request (headers and body)
@@ -354,7 +358,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
 
 // A sentinel that sends a 500 error unless armed=false
 struct HTTPConnectionSentinel {
-    stream: TcpStream,
+    stream: Box<GenericSocket>,
     armed: bool,
     request: WebRequest,
 }

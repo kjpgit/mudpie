@@ -1,16 +1,17 @@
 //! Helper module for reading a WebRequest
 
 use std;
-use std::io::{Read,Write};
+use std::io;
 use std::ascii::OwnedAsciiExt; 
 
 use super::WebRequest;
+use utils::genericsocket::GenericSocket;
 use utils;
 
 
 // Possible errors from `read_request`
 pub enum Error {
-    IoError(std::io::Error),
+    IoError(io::Error),
     InvalidRequest,
     InvalidVersion,
     LengthRequired,
@@ -18,8 +19,8 @@ pub enum Error {
 }
 
 // Auto convert io::IOError into our module specific error
-impl std::error::FromError<std::io::Error> for Error {
-    fn from_error(err: std::io::Error) -> Error {
+impl std::error::FromError<io::Error> for Error {
+    fn from_error(err: io::Error) -> Error {
         Error::IoError(err)
     }
 }
@@ -32,7 +33,7 @@ impl std::error::FromError<std::io::Error> for Error {
 // We transparently send the 100-Continue if expected of us.  However, the more
 // educated thing to do, for apps that actually care about this, would be to
 // call the app code first and let it validate the headers.
-pub fn read_request<T: Read+Write>(stream: &mut T, max_size: usize) 
+pub fn read_request(stream: &mut GenericSocket, max_size: usize) 
         -> Result<WebRequest, Error> {
     let mut req_buffer = Vec::<u8>::with_capacity(4096);
     let req_size = try!(read_until_headers_end(&mut req_buffer, stream));
@@ -133,7 +134,7 @@ fn needs_100_continue(req: &utils::http_request::Request) -> bool {
 // Read until \r\n\r\n, which terminates the request headers
 // Note: extra data may be in the buffer.
 fn read_until_headers_end(buffer: &mut Vec<u8>,
-        stream: &mut Read) -> Result<usize, std::io::Error> 
+        stream: &mut GenericSocket) -> Result<usize, io::Error> 
 {
     // Craptastic new io copying; with_extra isn't supported yet
     // and is unsafe.
@@ -145,8 +146,8 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
         // Try to read some more data
         let size = try!(stream.read(&mut chunk_buff));
         if size == 0 {
-            return Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
+            return Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
                     "connection closed while reading request headers", 
                     None));
         }
@@ -165,7 +166,7 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
 // Read until the buffer is at least size bytes long
 // Note: extra data may be in the buffer.
 fn read_until_size(buffer: &mut Vec<u8>,
-        stream: &mut Read, size: usize) -> Result<(), std::io::Error>
+        stream: &mut GenericSocket, size: usize) -> Result<(), io::Error>
 {
     let chunk_size = 4096;
     let mut chunk_buff = Vec::with_capacity(chunk_size);
@@ -174,8 +175,8 @@ fn read_until_size(buffer: &mut Vec<u8>,
     while buffer.len() < size {
         let size = try!(stream.read(&mut chunk_buff));
         if size == 0 {
-            return Err(std::io::Error::new(
-                    std::io::ErrorKind::BrokenPipe,
+            return Err(io::Error::new(
+                    io::ErrorKind::BrokenPipe,
                     "connection closed while reading request body", 
                     None));
         }
