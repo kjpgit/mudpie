@@ -38,8 +38,6 @@ pub fn write_response(stream: &mut GenericSocket,
     resp.push_str("\r\n");
 
     // Note that success still doesn't guarantee the client got the data.
-    // TODO: Rust seems to have a bug and not report an error on EPIPE.
-    // Wait until std::io settles down and reproduce it.
     let ioret = stream.write_all(resp.as_bytes());
     if ioret.is_err() {
         println!("error sending response headers: {}", 

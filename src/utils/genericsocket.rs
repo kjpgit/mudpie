@@ -18,5 +18,3 @@ impl<T: io::Read + io::Write + Send> GenericSocket for T {
         return (self as &mut io::Write).write_all(buf);
     }
 }
-
-
