@@ -268,6 +268,11 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
         stream: TcpStream, peer_addr: SocketAddr) {
     let mut stream = stream;
 
+    // Set nodelay.  We write headers then body,
+    // and don't want to stall.
+    stream.set_nodelay(true).unwrap();
+
+
     // Read full request (headers and body)
     let mut req = match read_request::read_request(&mut stream,
             ctx.shared_ctx.max_request_body_size) {
