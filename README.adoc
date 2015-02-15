@@ -64,7 +64,8 @@ Summary:
 ----
 
 NOTE: You should probably turn request logging off (`export MUDPIE_LOGGING=0`)
-or redirect it to `/dev/null` when benchmarking.
+or redirect it to `/dev/null` when benchmarking, and also use `cargo run
+--release` to enable compiler optimizations.
 
 
 == More Information
