@@ -1,4 +1,4 @@
-= Mudpie Manual
+= Mudpie Internals Manual
 
 :app: Mudpie
 
@@ -52,14 +52,20 @@ double panic happens in a worker thread, the entire process will abort.  This
 is standard Rust behavior.  A higher level watchdog process should monitor and
 restart the {app} process if needed.
 
+== TCP Cork
+
+Rust doesn't currently expose TCP cork/uncork in the socket interface, which is
+unfortunate.  Ideally we'd cork the response headers + body together, and not
+send two packets.  {app} sets TCP nodelay so at least there's no stall for the
+second packet, but it's still potentially more work than one packet.
 
 
 == SSL / TLS
 
 Supporting SSL/TLS is on the roadmap, however {app} will not require a
 dependency on any external library; such functionality will be optional.  {app}
-should be able to use any object that exposes a Reader+Writer trait and can
-wrap a socket.
+internally uses a GenericSocket trait that is designed to be wrappable by
+OpenSSL.
 
 
 == Request Routing
@@ -75,6 +81,8 @@ Repeated header names are in requests are supported; values are joined in order
 by ",".
 
 Chunked requests are not supported; a 411 error is returned.
+
+Persistent connections are not currently supported.
 
 Pipelining is not supported; the connection will be closed.  Yet another HTTP
 misfeature that interacts badly with errors, connection close, and TCP reset.

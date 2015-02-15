@@ -5,9 +5,8 @@
 
 == Overview
 
-{app} is a simple multi-threaded HTTP application server for the amazingly
-awesome Rust language.  It is inspired by python's lean and elegant WSGI
-protocol.
+{app} is a simple multi-threaded HTTP server for the amazingly awesome Rust
+language.  It is inspired by Python's WSGI specification.
 
 {app} is written in 100% safe Rust code (no unsafe blocks) and has no
 dependencies.  It is intended to be reliable and easy to audit for security,
@@ -16,12 +15,7 @@ especially for embedded applications.
 NOTE: The {app} `master` branch is for Rust nightly.  
 
 
-== Try it out
-
-Use +cargo run+ to start the included demo server, which displays some example
-pages you can visit at  +http://localhost:8000/+.
-
-== Example Code
+== Hello World Code
 
 [source,rust]
 ----
@@ -40,6 +34,36 @@ fn main() {
 }
 ----
 
+
+== Running the Demo Server
+
+Use +cargo run+ to start the included demo server, which has some example
+pages you can visit at  +http://localhost:8000/+.
+
+----
+$ cargo run 0.0.0.0 8000
+
+     Running `target/demo 0.0.0.0 8000`
+listening on 0.0.0.0:8000
+starting 10 worker threads
+starting monitor loop
+----
+
+
+You can bench mark it using a program like "boom" or any other HTTP tester:
+
+----
+$ ./goprograms/bin/boom -n 100000 -c 10 -cpus 3 http://localhost:8000/bench
+
+Summary:
+  Total:    3.2466 secs.
+  Slowest:  0.0342 secs.
+  Fastest:  0.0001 secs.
+  Average:  0.0003 secs.
+  Requests/sec: 30801.6515
+----
+
+
 == More Information
 
 * The link:src/bin/demo.rs[Demo Program] shows example usage
@@ -47,7 +71,7 @@ fn main() {
 * The link:http://www.rust-ci.org/kjpgit/mudpie/doc/mudpie/[Mudpie
   Crate API Docs] 
 
-* The link:Manual.adoc[Manual] has gory architecture and protocol details
+* The link:Internals.adoc[Internals] has gory architecture and protocol details
 
 
 == License
