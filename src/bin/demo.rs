@@ -1,15 +1,59 @@
 #![cfg_attr(test, allow(dead_code))]
-
 #![feature(core)]
 #![feature(env)]
+
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
 use mudpie::html_element_escape;
 
-// Example server program
-// Demonstrates use of the mudpie library
-// Usage: ./demo [address] [port]
-// Example: ./demo 0.0.0.0 8001
+/*
+
+Example server program that demonstrates use of the mudpie server
+
+Usage: ./demo [address] [port] [nr_threads]
+Example: ./demo 0.0.0.0 8000
+
+*/
+
+
+fn main() {
+    let mut args = Vec::new();
+    args.extend(std::env::args());
+
+    // Default options
+    let mut listen_addr = "127.0.0.1";
+    let mut listen_port = 8000;
+    let mut nr_threads = 10;
+
+    if args.len() > 1 {
+        listen_addr = &args[1];
+    }
+    if args.len() > 2 {
+        listen_port = (&args[2]).parse::<i32>().unwrap();
+    }
+    if args.len() > 3 {
+        nr_threads = (&args[3]).parse::<i32>().unwrap();
+    }
+
+
+    let mut svr = WebServer::new();
+    svr.set_num_threads(nr_threads);
+    //svr.set_max_request_body_size(10);
+
+    // Setup dispatch rules
+    svr.add_path("get", "/bench", bench_page);
+    svr.add_path("GET, HEAD", "/", index_page);
+    svr.add_path("get, head", "/hello", hello_page);
+    svr.add_path_prefix("get,head", "/hello/", hello_page);
+    svr.add_path("get", "/panic", panic_page);
+
+    svr.add_path("get", "/form_enter", form_enter);
+    svr.add_path("post", "/form_post", form_post);
+
+    svr.add_path("put,options,foo", "/silly_methods", hello_page);
+
+    svr.run(listen_addr, listen_port);
+}
 
 
 // Add html and body tags
@@ -77,6 +121,9 @@ fn index_page(_req: &WebRequest) -> WebResponse {
 <dt><a href="/silly_methods">/silly_methods</a> 
 <dd>Only allows PUT, OPTIONS, and FOO methods. See Allow: header
 
+<dt><a href="/bench">/bench</a> 
+<dd>A super-tiny resource useful for benchmarking socket performance
+
 </dl>
 "##);
     page = to_html(page);
@@ -125,42 +172,10 @@ Last Name: <input type="text" name="lname">
     return WebResponse::new_html(page);
 }
 
+
 fn form_post(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Thank you for the POST</h1>");
     page.push_str(&get_debug_info(req));
     return WebResponse::new_html(page);
-}
-
-
-fn main() {
-    let mut svr = WebServer::new();
-
-    // Setup dispatch rules
-    svr.add_path("get", "/bench", bench_page);
-    svr.add_path("GET, HEAD", "/", index_page);
-    svr.add_path("get, head", "/hello", hello_page);
-    svr.add_path_prefix("get,head", "/hello/", hello_page);
-    svr.add_path("get", "/panic", panic_page);
-
-    svr.add_path("get", "/form_enter", form_enter);
-    svr.add_path("post", "/form_post", form_post);
-
-    svr.add_path("put,options,foo", "/silly_methods", hello_page);
-
-    //svr.set_max_request_body_size(10);
-
-    let mut args = Vec::new();
-    args.extend(std::env::args());
-    let mut addr = "127.0.0.1";
-    let mut port = 8000;
-    if args.len() > 1 {
-        addr = &args[1]
-    }
-    if args.len() > 2 {
-        port = (&args[2]).parse::<i32>().unwrap();
-    }
-
-    // Start worker threads and serve content
-    svr.run(addr, port);
 }
