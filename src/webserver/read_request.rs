@@ -37,7 +37,6 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
         -> Result<WebRequest, Error> {
     let mut req_buffer = Vec::<u8>::with_capacity(4096);
     let req_size = try!(read_until_headers_end(&mut req_buffer, stream));
-    println!("read raw request: {} bytes", req_size);
 
     // Try to parse it
     let req = match utils::http_request::parse(&req_buffer[..req_size]) {
@@ -46,9 +45,6 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
         Err(..) => return Err(Error::InvalidRequest),
         Ok(parsed_req) => parsed_req,
     };
-
-    // Valid request.  
-    println!("parsed request ok: method={}, path={}", req.method, req.path);
 
     // See if there's a body to read too.  
 
@@ -71,8 +67,6 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
             Some(clen) => clen,
         };
 
-        println!("body size: {} bytes", clen);
-
         if clen > max_size as u64 {
             return Err(Error::TooLarge);
         }
@@ -82,7 +76,6 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
 
         // Send 100-continue if needed
         if needs_100_continue(&req) {
-            println!("sending 100 continue");
             let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
             try!(stream.write_all(cont));
         }
@@ -153,7 +146,6 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
         }
         buffer.push_all(&chunk_buff[0..size]);
 
-        //println!("req_buffer {}", req_buffer.len());
         let split_pos = utils::byteutils::memmem(&buffer, b"\r\n\r\n");
         if split_pos.is_none() {
             continue;

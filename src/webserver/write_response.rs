@@ -11,15 +11,20 @@ use utils::genericsocket::GenericSocket;
 pub fn write_response(stream: &mut GenericSocket, 
         request: Option<&WebRequest>, 
         response: &WebResponse) {
-    println!("sending response: code={}, body_length={}",
-            response.code, response.body.len());
 
     // Respond with the max version the client requested
     let mut protocol = "HTTP/1.1";
-    if request.is_some() && 
-            &**request.unwrap().environ.get(b"protocol").unwrap() 
-            == b"http/1.0" {
-        protocol = "HTTP/1.0";
+    if request.is_some() {
+        let req = request.unwrap();
+        if &**req.environ.get(b"protocol").unwrap() == b"http/1.0" {
+            protocol = "HTTP/1.0";
+        }
+
+        println!("method={} path={} code={} body_len={}",
+            req.get_method(), 
+            req.get_path(),
+            response.code,
+            response.body.len());
     }
 
     let mut resp = String::new();
@@ -40,12 +45,8 @@ pub fn write_response(stream: &mut GenericSocket,
     // Note that success still doesn't guarantee the client got the data.
     let ioret = stream.write_all(resp.as_bytes());
     if ioret.is_err() {
-        println!("error sending response headers: {}", 
-            ioret.err().unwrap());
         return;
     }
-
-    //std::old_io::timer::sleep(std::time::duration::Duration::seconds(4));
 
     // Send the body unless it was a HEAD request.
     // HTTP HEAD is so retarded because you can't see error bodies.
@@ -56,11 +57,7 @@ pub fn write_response(stream: &mut GenericSocket,
     if send_body {
         let ioret = stream.write_all(&response.body);
         if ioret.is_err() {
-            println!("error sending response body: {}", 
-                ioret.err().unwrap());
             return;
-        } else {
-            //println!("ok sending response body");
-        }
+        } 
     }
 }
