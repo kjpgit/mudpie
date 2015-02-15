@@ -1,7 +1,8 @@
-#![feature(net)]
 #![feature(collections)]
 #![feature(core)]
+#![feature(env)]
 #![feature(io)]
+#![feature(net)]
 #![feature(std_misc)]
 
 pub use webserver::{WebServer, WebRequest, WebResponse};

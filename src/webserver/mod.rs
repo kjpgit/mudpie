@@ -1,3 +1,4 @@
+use std::env;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::net::{TcpListener, TcpStream, SocketAddr};
@@ -6,10 +7,12 @@ use utils::threadpool::ThreadPool;
 use utils::genericsocket::GenericSocket;
 use self::write_response::write_response;
 use self::router::{Router, RoutingResult};
+pub use self::logging::Logger;
 
 mod read_request;
 mod write_response;
 mod router;
+mod logging;
 
 static DEFAULT_MAX_REQUEST_BODY_SIZE: usize = 1_000_000;
 
@@ -139,6 +142,7 @@ pub type PageFunction = fn(&WebRequest) -> WebResponse;
 // All worker threads have read only access 
 struct WorkerSharedContext {
     router: Router,
+    logger: Logger,
     max_request_body_size: usize,
     listen_sock: TcpListener,
 }
@@ -155,6 +159,7 @@ pub struct WebServer {
     // initialization time, but then moves them into the (read only)
     // WorkerSharedContext right before starting threads.
     nr_threads: i32,
+    logging_enabled: bool,
     router: Option<Router>,
     thread_pool: ThreadPool,
     worker_shared_context: Option<Arc<WorkerSharedContext>>,
@@ -162,9 +167,26 @@ pub struct WebServer {
 }
 
 impl WebServer {
+    /// Create a new WebServer object.
+    ///
+    /// The following environment variables are used for defaults:
+    ///
+    /// * MUDPIE_THREADS=N  Default is 10, use set_num_threads to override.
+    ///
+    /// * MUDPIE_LOGGING=[0|1]  Default is 1 (true), use set_logging to
+    /// override.  
     pub fn new() -> WebServer {
+        let nr_threads = match env::var("MUDPIE_THREADS") {
+            Ok(val) => val.parse::<i32>().unwrap(),
+            Err(..) => 10,
+        };
+        let logging_enabled = match env::var("MUDPIE_LOGGING") {
+            Ok(val) => val.parse::<i32>().unwrap() > 0,
+            Err(..) => true,
+        };
         let ret = WebServer{
-                nr_threads: 10,
+                nr_threads: nr_threads,
+                logging_enabled: logging_enabled,
                 router: Some(Router::new()),
                 thread_pool: ThreadPool::new(),
                 worker_shared_context: None,
@@ -177,6 +199,11 @@ impl WebServer {
     pub fn set_num_threads(&mut self, n: i32) {
         assert!(n > 0);
         self.nr_threads = n;
+    }
+
+    /// Set basic request / response logging (to stdout) on or off. (ALPHA)
+    pub fn set_logging(&mut self, on: bool) {
+        self.logging_enabled = on;
     }
 
     /// Set the maximum request body size.  Larger requests will generate 
@@ -212,13 +239,12 @@ impl WebServer {
         println!("listening on {}", addr);
         let listener = TcpListener::bind(&*addr).unwrap();
         
-        // .clone doesn't work, compiler bug.
-        // Oh well, moving it saves memory anyway
         let router_moved = self.router.take().unwrap();
 
         // Create a read-only context all worker threads can use
         let ctx = WorkerSharedContext {
             router: router_moved,
+            logger: Logger::new(self.logging_enabled),
             max_request_body_size: self.max_request_body_size,
             listen_sock: listener,
         };
@@ -231,6 +257,7 @@ impl WebServer {
             self.start_new_worker();
         }
 
+        println!("logging to stdout enabled: {}", self.logging_enabled);
         println!("starting monitor loop");
         loop {
             self.thread_pool.wait_for_thread_exit();
@@ -242,13 +269,12 @@ impl WebServer {
 
     fn start_new_worker(&mut self) {
         let priv_ctx = WorkerPrivateContext {
-            shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
+            shared_ctx: self.worker_shared_context.as_ref().unwrap().clone(),
         };
         self.thread_pool.execute(move || {
             worker_thread_main(priv_ctx);
         });
     }
-
 }
 
 
@@ -258,7 +284,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
         match res {
             Ok((sock, peeraddr)) => 
                 process_http_connection(&ctx, sock, peeraddr),
-            Err(err) => println!("accept error: {}", err)
+            Err(err) => ctx.shared_ctx.logger.log_accept_error(err),
         }
     }
 }
@@ -272,6 +298,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
     // and don't want to stall.
     raw_stream.set_nodelay(true).unwrap();
 
+    let log: &Logger = &ctx.shared_ctx.logger;
+
 
     // Now is where we could also wrap it with SSL.
     let mut stream: Box<GenericSocket> = Box::new(raw_stream);
@@ -284,32 +312,32 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
             resp.set_body_str("Error 400: Bad Request");
-            write_response(&mut *stream, None, &resp);
+            write_response(&mut *stream, None, &resp, log);
             return;
         },
         Err(read_request::Error::LengthRequired) => {
             let mut resp = WebResponse::new();
             resp.set_code(411, "Length Required");
             resp.set_body_str("Error 411: Length Required");
-            write_response(&mut *stream, None, &resp);
+            write_response(&mut *stream, None, &resp, log);
             return;
         },
         Err(read_request::Error::InvalidVersion) => {
             let mut resp = WebResponse::new();
             resp.set_code(505, "Version not Supported");
             resp.set_body_str("Error 505: Version not Supported");
-            write_response(&mut *stream, None, &resp);
+            write_response(&mut *stream, None, &resp, log);
             return;
         },
         Err(read_request::Error::TooLarge) => {
             let mut resp = WebResponse::new();
             resp.set_code(413, "Request Entity Too Large");
             resp.set_body_str("Error 413: Request Entity Too Large");
-            write_response(&mut *stream, None, &resp);
+            write_response(&mut *stream, None, &resp, log);
             return;
         },
         Err(read_request::Error::IoError(e)) => {
-            println!("IoError when reading request: {}", e);
+            log.log_read_request_error(e);
             return;
         },
         Ok(req) => req,
@@ -327,7 +355,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             let mut resp = WebResponse::new();
             resp.set_code(404, "Not Found");
             resp.set_body_str("Error 404: Resource not found");
-            write_response(&mut *stream, Some(&req), &resp);
+            write_response(&mut *stream, Some(&req), &resp, log);
             return;
         }
         RoutingResult::NoMethodMatch(methods) => {
@@ -336,29 +364,34 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             resp.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
             resp.set_header("Allow", &methods_joined);
-            write_response(&mut *stream, Some(&req), &resp);
+            write_response(&mut *stream, Some(&req), &resp, log);
             return;
         }
     };
 
 
     // Run the handler.  If it panics, the sentinel will send a 500.
+    // We clone the shared_ctx Arc just so we have access to the logging object
+    // during the drop.  
+    // TODO: when unsafe_destructor is no longer needed
+    // just to store a reference, use that for the logger/context.
     let mut sentinel = HTTPConnectionSentinel { 
-        request: req,
         stream: stream, 
+        shared_ctx: ctx.shared_ctx.clone(),
+        request: req,
         armed: true 
     };
     let response = (page_fn)(&sentinel.request);
     sentinel.armed = false;
-    write_response(&mut *sentinel.stream, 
-        Some(&sentinel.request),
-        &response);
+    write_response(&mut *sentinel.stream, Some(&sentinel.request),
+            &response, log);
 }
 
 
 // A sentinel that sends a 500 error unless armed=false
 struct HTTPConnectionSentinel {
     stream: Box<GenericSocket>,
+    shared_ctx: Arc<WorkerSharedContext>,
     armed: bool,
     request: WebRequest,
 }
@@ -370,7 +403,10 @@ impl Drop for HTTPConnectionSentinel {
             let mut resp = WebResponse::new();
             resp.set_code(500, "Uh oh :-(");
             resp.set_body_str("Error 500: Internal error in handler function");
-            write_response(&mut *self.stream, Some(&self.request), &resp);
+            write_response(&mut *self.stream, 
+                Some(&self.request), 
+                &resp,
+                &self.shared_ctx.logger);
         }
     }
 }

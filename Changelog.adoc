@@ -1,5 +1,11 @@
 = Changelog
 
+== 0.2.1
+
+* log level control
+* logging code centralized, for easy format / backend changes
+* env vars for common settings
+
 == 0.2.0
 
 * GenericSocket trait in prep for optional SSL support

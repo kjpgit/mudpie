@@ -63,6 +63,9 @@ Summary:
   Requests/sec: 30801.6515
 ----
 
+NOTE: You should probably turn request logging off (`export MUDPIE_LOGGING=0`)
+or redirect it to `/dev/null` when benchmarking.
+
 
 == More Information
 

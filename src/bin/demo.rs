@@ -10,8 +10,11 @@ use mudpie::html_element_escape;
 
 Example server program that demonstrates use of the mudpie server
 
-Usage: ./demo [address] [port] [nr_threads]
+Usage: ./demo [address] [port]
 Example: ./demo 0.0.0.0 8000
+Optional env vars: 
+    MUDPIE_THREADS=<NUM>
+    MUDPIE_LOGGING=[0|1]
 
 */
 
@@ -23,7 +26,6 @@ fn main() {
     // Default options
     let mut listen_addr = "127.0.0.1";
     let mut listen_port = 8000;
-    let mut nr_threads = 10;
 
     if args.len() > 1 {
         listen_addr = &args[1];
@@ -31,13 +33,9 @@ fn main() {
     if args.len() > 2 {
         listen_port = (&args[2]).parse::<i32>().unwrap();
     }
-    if args.len() > 3 {
-        nr_threads = (&args[3]).parse::<i32>().unwrap();
-    }
 
 
     let mut svr = WebServer::new();
-    svr.set_num_threads(nr_threads);
     //svr.set_max_request_body_size(10);
 
     // Setup dispatch rules
