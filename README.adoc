@@ -50,7 +50,7 @@ starting monitor loop
 ----
 
 
-You can bench mark it using a program like "boom" or any other HTTP tester:
+You can benchmark it using a program like "boom" or any other HTTP tester:
 
 ----
 $ ./goprograms/bin/boom -n 100000 -c 10 -cpus 3 http://localhost:8000/bench
