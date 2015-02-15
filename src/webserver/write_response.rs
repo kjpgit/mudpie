@@ -20,9 +20,15 @@ pub fn write_response(stream: &mut GenericSocket,
             protocol = "HTTP/1.0";
         }
 
+        // TODO: Better machine parsable output
         println!("method={} path={} code={} body_len={}",
             req.get_method(), 
             req.get_path(),
+            response.code,
+            response.body.len());
+    } else {
+        // Didn't get a valid request
+        println!("code={} body_len={}",
             response.code,
             response.body.len());
     }
