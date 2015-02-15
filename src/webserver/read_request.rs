@@ -26,6 +26,7 @@ impl std::error::FromError<io::Error> for Error {
 }
 
 
+// TODO: split the body reading out
 // Read a full request from the client (headers and body)
 // max_size: max body size
 //
@@ -47,15 +48,14 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
     };
 
     // See if there's a body to read too.  
+    let mut body = Vec::new();
 
     // We don't currently support chunked
     if req.environ.contains_key(b"http_transfer-encoding") {
         return Err(Error::LengthRequired);
     }
 
-
-    let mut body = Vec::new();
-    { // borrow scope
+    { // borrow scope for req.environ
     let clen = req.environ.get(b"http_content-length");
     if clen.is_some() {
         let clen = match utils::byteutils::parse_u64(&clen.unwrap()) {
