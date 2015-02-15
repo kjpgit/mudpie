@@ -1,3 +1,5 @@
+#![cfg_attr(test, allow(dead_code))]
+
 #![feature(core)]
 #![feature(env)]
 extern crate mudpie;
