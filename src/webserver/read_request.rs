@@ -49,11 +49,8 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
     // See if there's a body to read too.  
 
     // We don't currently support chunked
-    { // borrow scope
-    let te = req.environ.get(b"http_transfer-encoding");
-    if te.is_some() {
+    if req.environ.contains_key(b"http_transfer-encoding") {
         return Err(Error::LengthRequired);
-    }
     }
 
 
