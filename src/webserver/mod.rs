@@ -7,12 +7,12 @@ use utils::threadpool::ThreadPool;
 use utils::genericsocket::GenericSocket;
 use self::write_response::write_response;
 use self::router::{Router, RoutingResult};
-pub use self::logging::Logger;
+pub use self::logger::Logger;
 
 mod read_request;
 mod write_response;
 mod router;
-mod logging;
+mod logger;
 
 static DEFAULT_MAX_REQUEST_BODY_SIZE: usize = 1_000_000;
 
