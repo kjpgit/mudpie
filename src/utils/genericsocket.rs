@@ -6,9 +6,8 @@ use std::io;
  * but it shouldn't be too onerous or non-standard to implement for an SSL
  * socket.
  *
- * If we needed to, we could make this a custom trait and provide a default
- * generic implementation for types implementing Read+Write.
- * e.g. impl<T: io::Read + io::Write> GenericSocket for T 
+ * We could trim this down to just expose the methods we need.
+ * TODO: look at method name collisions and disambiguation.
  */
 
 pub trait GenericSocket : io::Read + io::Write + Send { }
