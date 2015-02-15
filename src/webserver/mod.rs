@@ -278,34 +278,34 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
 
 
     // Read full request (headers and body)
-    let mut req = match read_request::read_request(&mut stream,
+    let mut req = match read_request::read_request(&mut *stream,
             ctx.shared_ctx.max_request_body_size) {
         Err(read_request::Error::InvalidRequest) => {
             let mut resp = WebResponse::new();
             resp.set_code(400, "Bad Request");
             resp.set_body_str("Error 400: Bad Request");
-            write_response(&mut stream, None, &resp);
+            write_response(&mut *stream, None, &resp);
             return;
         },
         Err(read_request::Error::LengthRequired) => {
             let mut resp = WebResponse::new();
             resp.set_code(411, "Length Required");
             resp.set_body_str("Error 411: Length Required");
-            write_response(&mut stream, None, &resp);
+            write_response(&mut *stream, None, &resp);
             return;
         },
         Err(read_request::Error::InvalidVersion) => {
             let mut resp = WebResponse::new();
             resp.set_code(505, "Version not Supported");
             resp.set_body_str("Error 505: Version not Supported");
-            write_response(&mut stream, None, &resp);
+            write_response(&mut *stream, None, &resp);
             return;
         },
         Err(read_request::Error::TooLarge) => {
             let mut resp = WebResponse::new();
             resp.set_code(413, "Request Entity Too Large");
             resp.set_body_str("Error 413: Request Entity Too Large");
-            write_response(&mut stream, None, &resp);
+            write_response(&mut *stream, None, &resp);
             return;
         },
         Err(read_request::Error::IoError(e)) => {
@@ -327,7 +327,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             let mut resp = WebResponse::new();
             resp.set_code(404, "Not Found");
             resp.set_body_str("Error 404: Resource not found");
-            write_response(&mut stream, Some(&req), &resp);
+            write_response(&mut *stream, Some(&req), &resp);
             return;
         }
         RoutingResult::NoMethodMatch(methods) => {
@@ -336,7 +336,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             resp.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
             resp.set_header("Allow", &methods_joined);
-            write_response(&mut stream, Some(&req), &resp);
+            write_response(&mut *stream, Some(&req), &resp);
             return;
         }
     };
@@ -350,7 +350,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
     };
     let response = (page_fn)(&sentinel.request);
     sentinel.armed = false;
-    write_response(&mut sentinel.stream, 
+    write_response(&mut *sentinel.stream, 
         Some(&sentinel.request),
         &response);
 }
@@ -370,7 +370,7 @@ impl Drop for HTTPConnectionSentinel {
             let mut resp = WebResponse::new();
             resp.set_code(500, "Uh oh :-(");
             resp.set_body_str("Error 500: Internal error in handler function");
-            write_response(&mut self.stream, Some(&self.request), &resp);
+            write_response(&mut *self.stream, Some(&self.request), &resp);
         }
     }
 }

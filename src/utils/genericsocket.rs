@@ -2,14 +2,21 @@ use std::io;
 
 /*
  * Trait for reading and writing to a socket.  
- * We technically don't need all the methods in Read and Write,
- * but it shouldn't be too onerous or non-standard to implement for an SSL
- * socket.
- *
- * We could trim this down to just expose the methods we need.
- * TODO: look at method name collisions and disambiguation.
+ * Designed to be easily wrappable by SSL.
  */
 
-pub trait GenericSocket : io::Read + io::Write + Send { }
+pub trait GenericSocket : Send {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error>;
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error>;
+}
 
-impl<T: io::Read + io::Write + Send> GenericSocket for T  { }
+impl<T: io::Read + io::Write + Send> GenericSocket for T {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
+        return (self as &mut io::Read).read(buf);
+    }
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
+        return (self as &mut io::Write).write_all(buf);
+    }
+}
+
+
