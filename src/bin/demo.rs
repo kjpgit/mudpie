@@ -17,7 +17,7 @@ fn to_html(input: String) -> String {
     let mut page = String::new();
     page.push_str("<html>");
     page.push_str("<body>");
-    page.push_str(&*input);
+    page.push_str(&input);
     page.push_str("</body>");
     page.push_str("</html>");
     return page;
@@ -31,23 +31,23 @@ fn get_debug_info(req: &WebRequest) -> String {
     page.push_str("<table>");
     let mut raw_environ = Vec::new();
     for (k, v) in req.get_environ().iter() {
-        let k = String::from_utf8_lossy(&**k).into_owned();
-        let v = String::from_utf8_lossy(&**v).into_owned();
+        let k = String::from_utf8_lossy(&k).into_owned();
+        let v = String::from_utf8_lossy(&v).into_owned();
         raw_environ.push((k, v));
     }
     raw_environ.sort();
     for pair in raw_environ.iter() {
         page.push_str("<tr>");
         page.push_str("<td>");
-        page.push_str(&*html_element_escape(&*pair.0));
+        page.push_str(&html_element_escape(&pair.0));
         page.push_str("<td>");
-        page.push_str(&*html_element_escape(&*pair.1));
+        page.push_str(&html_element_escape(&pair.1));
     }
     page.push_str("</table>");
     page.push_str("<h2>Request Body</h2>");
     let body = req.get_body();
-    let body = String::from_utf8_lossy(&*body).into_owned();
-    page.push_str(&*html_element_escape(&*body));
+    let body = String::from_utf8_lossy(&body).into_owned();
+    page.push_str(&html_element_escape(&body));
     return page;
 }
 
@@ -88,7 +88,7 @@ fn hello_page(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Hello World!</h1>");
     page.push_str("<p>Unicode text: \u{03A6}\u{03A9}\u{20AC}\u{20AA}</p>");
-    page.push_str(&*get_debug_info(req));
+    page.push_str(&get_debug_info(req));
     page = to_html(page);
     let mut ret = WebResponse::new_html(page);
     ret.set_header("x-mudpie-example-header", "fi fi fo fum");
@@ -122,7 +122,7 @@ Last Name: <input type="text" name="lname">
 fn form_post(req: &WebRequest) -> WebResponse {
     let mut page = String::new();
     page.push_str("<h1>Thank you for the POST</h1>");
-    page.push_str(&*get_debug_info(req));
+    page.push_str(&get_debug_info(req));
     return WebResponse::new_html(page);
 }
 

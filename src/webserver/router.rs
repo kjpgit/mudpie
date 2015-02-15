@@ -61,7 +61,7 @@ impl Router {
                     }
 
                     // Method doesn't match, but save it for possible error
-                    found_methods.insert(&**method);
+                    found_methods.insert(&method);
                 }
             }
         }

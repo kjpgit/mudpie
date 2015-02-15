@@ -94,13 +94,13 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
 
     // Also decode path into a normalized form.
     let path_decoded = byteutils::percent_decode(
-            &**environ.get(b"path").unwrap());
+            &environ.get(b"path").unwrap());
     let path_decoded_utf8 = String::from_utf8_lossy(
-            &*path_decoded).into_owned();
+            &path_decoded).into_owned();
 
     // Decode method too, to make application code simpler
     let method_utf8 = String::from_utf8_lossy(
-            &*method).into_owned();
+            &method).into_owned();
 
     // Now process the headers
     for line in lines.iter().skip(1) {
@@ -137,7 +137,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
             },
             Entry::Occupied(mut entry) => {
                 (*entry.get_mut()).push_all(b",");
-                (*entry.get_mut()).push_all(&*header_value);
+                (*entry.get_mut()).push_all(&header_value);
             }
         }
     }

@@ -20,16 +20,16 @@ pub fn write_response(stream: &mut Writer,
     }
 
     let mut resp = String::new();
-    resp.push_str(&*format!("{} {} {}\r\n", 
+    resp.push_str(&format!("{} {} {}\r\n", 
                 protocol, response.code, response.status));
     resp.push_str("Connection: close\r\n");
-    resp.push_str(&*format!("Content-Length: {}\r\n", 
+    resp.push_str(&format!("Content-Length: {}\r\n", 
                 response.body.len()));
 
     for (k, v) in response.headers.iter() {
-        resp.push_str(&**k);
+        resp.push_str(&k);
         resp.push_str(": ");
-        resp.push_str(&**v);
+        resp.push_str(&v);
         resp.push_str("\r\n");
     }
     resp.push_str("\r\n");
@@ -53,7 +53,7 @@ pub fn write_response(stream: &mut Writer,
         send_body = false;
     }
     if send_body {
-        let _ioret = stream.write_all(&*response.body);
+        let _ioret = stream.write_all(&response.body);
         if ioret.is_err() {
             println!("error sending response body: {}", 
                 ioret.err().unwrap());

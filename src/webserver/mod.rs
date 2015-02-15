@@ -116,20 +116,20 @@ impl WebRequest {
     /// For the raw path, see environ[path].  
     /// Note: This does not normalize '/./' or  '/../' components.
     pub fn get_path(&self) -> &str {
-        return &*self.path;
+        return &self.path;
     }
 
     /// The utf8 (lossy) decoded method, in lowercase.
     ///
     /// For the raw method, see environ[method].  
     pub fn get_method(&self) -> &str {
-        return &*self.method;
+        return &self.method;
     }
 
     /// The request body.  Note that HTTP requests do not distinguish a null vs
     /// 0 length body, so this no longer returns an Option.
     pub fn get_body(&self) -> &[u8] {
-        return &*self.body;
+        return &self.body;
     }
 }
 
@@ -330,7 +330,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
             resp.set_code(405, "Method not allowed");
             resp.set_body_str("Error 405: Method not allowed");
             let methods_joined = methods.connect(", ");
-            resp.set_header("Allow", &*methods_joined);
+            resp.set_header("Allow", &methods_joined);
             write_response(&mut stream, Some(&req), &resp);
             return;
         }
