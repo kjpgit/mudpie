@@ -258,7 +258,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
         match res {
             Ok((sock, peeraddr)) => 
                 process_http_connection(&ctx, sock, peeraddr),
-            Err(err) => println!("accept error :-( {}", err)
+            Err(err) => println!("accept error: {}", err)
         }
     }
 }
@@ -309,7 +309,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             return;
         },
         Err(read_request::Error::IoError(e)) => {
-            println!("IoError during request: {}", e);
+            println!("IoError when reading request: {}", e);
             return;
         },
         Ok(req) => req,
