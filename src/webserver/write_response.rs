@@ -1,11 +1,13 @@
 //use std;
+use std::io::{Write};
+
 use super::{WebRequest, WebResponse};
 
 // Send response headers and body.
 // Body will not be sent if the request was a HEAD request.
 // Headers will be sent as UTF-8 bytes, but you need to stay in ASCII/Latin-1
 // range to be safe.
-pub fn write_response(stream: &mut Writer, 
+pub fn write_response(stream: &mut Write, 
         request: Option<&WebRequest>, 
         response: &WebResponse) {
     println!("sending response: code={}, body_length={}",
@@ -53,7 +55,7 @@ pub fn write_response(stream: &mut Writer,
         send_body = false;
     }
     if send_body {
-        let _ioret = stream.write_all(&response.body);
+        let ioret = stream.write_all(&response.body);
         if ioret.is_err() {
             println!("error sending response body: {}", 
                 ioret.err().unwrap());

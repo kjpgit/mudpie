@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::old_io::{TcpListener, TcpStream};
-use std::old_io::net::tcp::TcpAcceptor;
-use std::old_io::{Acceptor, Listener};
+use std::net::{TcpListener, TcpStream, SocketAddr};
 
 use utils::threadpool::ThreadPool;
 use self::write_response::write_response;
@@ -100,7 +98,6 @@ impl WebRequest {
     /// * http_xxx = "Header Value".  ex: http_user-agent = "Mozilla Firefox"
     ///
     /// * remote_address = remote/client IP and port, ex: "1.1.1.1:1234"
-    /// * local_address = local/server IP and port
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
@@ -142,14 +139,12 @@ pub type PageFunction = fn(&WebRequest) -> WebResponse;
 struct WorkerSharedContext {
     router: Router,
     max_request_body_size: usize,
+    listen_sock: TcpListener,
 }
 
 // Private copy for each worker thread
 struct WorkerPrivateContext {
     shared_ctx: Arc<WorkerSharedContext>,
-    // TODO: when std::io is finalized, use a single listener socket in
-    // parallel accept mode.
-    acceptor: TcpAcceptor,
 }
 
 
@@ -215,7 +210,6 @@ impl WebServer {
         let addr = format!("{}:{}", address, port);
         println!("listening on {}", addr);
         let listener = TcpListener::bind(&*addr).unwrap();
-        let acceptor = listener.listen().unwrap();
         
         // .clone doesn't work, compiler bug.
         // Oh well, moving it saves memory anyway
@@ -225,6 +219,7 @@ impl WebServer {
         let ctx = WorkerSharedContext {
             router: router_moved,
             max_request_body_size: self.max_request_body_size,
+            listen_sock: listener,
         };
 
         // We hold a reference too, in case threads die and need restart
@@ -232,7 +227,7 @@ impl WebServer {
 
         println!("starting {} worker threads", self.nr_threads);
         for _ in range(0, self.nr_threads) {
-            self.start_new_worker(&acceptor);
+            self.start_new_worker();
         }
 
         println!("starting monitor loop");
@@ -240,14 +235,13 @@ impl WebServer {
             self.thread_pool.wait_for_thread_exit();
             println!("uh oh, a worker thread died");
             println!("starting another worker");
-            self.start_new_worker(&acceptor);
+            self.start_new_worker();
         }
     }
 
-    fn start_new_worker(&mut self, acceptor: &TcpAcceptor) {
+    fn start_new_worker(&mut self) {
         let priv_ctx = WorkerPrivateContext {
             shared_ctx: self.worker_shared_context.as_mut().unwrap().clone(),
-            acceptor: acceptor.clone(),
         };
         self.thread_pool.execute(move || {
             worker_thread_main(priv_ctx);
@@ -258,19 +252,20 @@ impl WebServer {
 
 
 fn worker_thread_main(ctx: WorkerPrivateContext) {
-    let mut ctx = ctx;
     loop {
-        let res = ctx.acceptor.accept();
+        let res = ctx.shared_ctx.listen_sock.accept();
         match res {
-            Ok(sock) => process_http_connection(&ctx, sock),
-            Err(err) => println!("socket error :-( {}", err)
+            Ok((sock, peeraddr)) => 
+                process_http_connection(&ctx, sock, peeraddr),
+            Err(err) => println!("accept error :-( {}", err)
         }
     }
 }
 
 
 // HTTP specific socket processing
-fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
+fn process_http_connection(ctx: &WorkerPrivateContext, 
+        stream: TcpStream, peer_addr: SocketAddr) {
     let mut stream = stream;
 
     // Read full request (headers and body)
@@ -312,7 +307,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     };
 
     // Add socket specific attributes 
-    add_socket_info(&mut req, &mut stream); 
+    let val = format!("{}", peer_addr);
+    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
 
     // Do routing
     let ret = ctx.shared_ctx.router.route(&req);
@@ -368,16 +364,4 @@ impl Drop for HTTPConnectionSentinel {
             write_response(&mut self.stream, Some(&self.request), &resp);
         }
     }
-}
-
-
-// Add remote_address and local_address attributes
-// No idea why we need a &mut to call peer_name/socket_name
-fn add_socket_info(req: &mut WebRequest, stream: &mut TcpStream) {
-    let remote_addr = stream.peer_name().unwrap();
-    let val = format!("{}", remote_addr);
-    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
-    let local_addr = stream.socket_name().unwrap();
-    let val = format!("{}", local_addr);
-    req.environ.insert(b"local_address".to_vec(), val.as_bytes().to_vec());
 }

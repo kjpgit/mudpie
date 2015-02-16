@@ -96,6 +96,12 @@ fn hello_page(req: &WebRequest) -> WebResponse {
 }
 
 
+fn bench_page(_req: &WebRequest) -> WebResponse {
+    let page = "Hello World!".to_string();
+    return WebResponse::new_html(page);
+}
+
+
 // This will automatically generate a 500 Internal Server Error
 fn panic_page(_req: &WebRequest) -> WebResponse {
     panic!("I can't go on!");
@@ -131,6 +137,7 @@ fn main() {
     let mut svr = WebServer::new();
 
     // Setup dispatch rules
+    svr.add_path("get", "/bench", bench_page);
     svr.add_path("GET, HEAD", "/", index_page);
     svr.add_path("get, head", "/hello", hello_page);
     svr.add_path_prefix("get,head", "/hello/", hello_page);
