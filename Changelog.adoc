@@ -1,5 +1,9 @@
 = Changelog
 
+== 0.1.4
+
+* Use new std::io - a bit faster on accept() now due to no thundering herd
+
 == 0.1.1
 
 * support "Expect: 100-continue" request header
