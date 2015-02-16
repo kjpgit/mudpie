@@ -256,7 +256,7 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
     loop {
         let res = ctx.shared_ctx.listen_sock.accept();
         match res {
-            Ok((sock,peeraddr)) => process_http_connection(&ctx, sock),
+            Ok((sock,_peeraddr)) => process_http_connection(&ctx, sock),
             Err(err) => println!("socket error :-( {}", err)
         }
     }

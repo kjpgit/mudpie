@@ -136,13 +136,18 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
         stream: &mut Read) -> Result<usize, std::io::Error> 
 {
     let chunk_size = 4096;
+    let mut chunk_buff = Vec::with_capacity(chunk_size);
+    chunk_buff.resize(chunk_size, 0);
+
     loop { 
         // Try to read some more data
-        let size = try!(stream.push(chunk_size, buffer));
+        let size = try!(stream.read(&mut chunk_buff));
         //println!("read size {}", size);
         if size == 0 {
             continue;
         }
+        
+        buffer.push_all(&chunk_buff[0..size]);
 
         //println!("req_buffer {}", req_buffer.len());
         let split_pos = utils::byteutils::memmem(&buffer, b"\r\n\r\n");
@@ -160,8 +165,12 @@ fn read_until_size(buffer: &mut Vec<u8>,
         stream: &mut Read, size: usize) -> Result<(), std::io::Error>
 {
     let chunk_size = 4096;
+    let mut chunk_buff = Vec::with_capacity(chunk_size);
+    chunk_buff.resize(chunk_size, 0);
+
     while buffer.len() < size {
-        try!(stream.push(chunk_size, buffer));
+        let size = try!(stream.read(&mut chunk_buff));
+        buffer.push_all(&chunk_buff[0..size]);
     }
     return Ok(());
 }
