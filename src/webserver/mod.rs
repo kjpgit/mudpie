@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::net::{TcpListener, TcpStream};
+use std::net::{TcpListener, TcpStream, SocketAddr};
 
 use utils::threadpool::ThreadPool;
 use self::write_response::write_response;
@@ -98,7 +98,6 @@ impl WebRequest {
     /// * http_xxx = "Header Value".  ex: http_user-agent = "Mozilla Firefox"
     ///
     /// * remote_address = remote/client IP and port, ex: "1.1.1.1:1234"
-    /// * local_address = local/server IP and port
     ///
     /// Note: protocol, method, and header names are lowercased,
     /// since they are defined to be case-insensitive.
@@ -256,15 +255,17 @@ fn worker_thread_main(ctx: WorkerPrivateContext) {
     loop {
         let res = ctx.shared_ctx.listen_sock.accept();
         match res {
-            Ok((sock,_peeraddr)) => process_http_connection(&ctx, sock),
-            Err(err) => println!("socket error :-( {}", err)
+            Ok((sock, peeraddr)) => 
+                process_http_connection(&ctx, sock, peeraddr),
+            Err(err) => println!("accept error :-( {}", err)
         }
     }
 }
 
 
 // HTTP specific socket processing
-fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
+fn process_http_connection(ctx: &WorkerPrivateContext, 
+        stream: TcpStream, peer_addr: SocketAddr) {
     let mut stream = stream;
 
     // Read full request (headers and body)
@@ -306,7 +307,8 @@ fn process_http_connection(ctx: &WorkerPrivateContext, stream: TcpStream) {
     };
 
     // Add socket specific attributes 
-    add_socket_info(&mut req, &mut stream); 
+    let val = format!("{}", peer_addr);
+    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
 
     // Do routing
     let ret = ctx.shared_ctx.router.route(&req);
@@ -362,16 +364,4 @@ impl Drop for HTTPConnectionSentinel {
             write_response(&mut self.stream, Some(&self.request), &resp);
         }
     }
-}
-
-
-// Add remote_address and local_address attributes
-// No idea why we need a &mut to call peer_name/socket_name
-fn add_socket_info(req: &mut WebRequest, stream: &mut TcpStream) {
-    let remote_addr = stream.peer_addr().unwrap();
-    let val = format!("{}", remote_addr);
-    req.environ.insert(b"remote_address".to_vec(), val.as_bytes().to_vec());
-    let local_addr = stream.socket_addr().unwrap();
-    let val = format!("{}", local_addr);
-    req.environ.insert(b"local_address".to_vec(), val.as_bytes().to_vec());
 }
