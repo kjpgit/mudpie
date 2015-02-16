@@ -135,6 +135,8 @@ fn needs_100_continue(req: &utils::http_request::Request) -> bool {
 fn read_until_headers_end(buffer: &mut Vec<u8>,
         stream: &mut Read) -> Result<usize, std::io::Error> 
 {
+    // Craptastic new io copying; with_extra isn't supported yet
+    // and is unsafe.
     let chunk_size = 4096;
     let mut chunk_buff = Vec::with_capacity(chunk_size);
     chunk_buff.resize(chunk_size, 0);
@@ -142,11 +144,12 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
     loop { 
         // Try to read some more data
         let size = try!(stream.read(&mut chunk_buff));
-        //println!("read size {}", size);
         if size == 0 {
-            continue;
+            return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "connection closed while reading request headers", 
+                    None));
         }
-        
         buffer.push_all(&chunk_buff[0..size]);
 
         //println!("req_buffer {}", req_buffer.len());
@@ -170,6 +173,12 @@ fn read_until_size(buffer: &mut Vec<u8>,
 
     while buffer.len() < size {
         let size = try!(stream.read(&mut chunk_buff));
+        if size == 0 {
+            return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "connection closed while reading request body", 
+                    None));
+        }
         buffer.push_all(&chunk_buff[0..size]);
     }
     return Ok(());
