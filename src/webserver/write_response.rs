@@ -55,7 +55,7 @@ pub fn write_response(stream: &mut Write,
         send_body = false;
     }
     if send_body {
-        let _ioret = stream.write_all(&response.body);
+        let ioret = stream.write_all(&response.body);
         if ioret.is_err() {
             println!("error sending response body: {}", 
                 ioret.err().unwrap());
