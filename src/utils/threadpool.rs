@@ -1,7 +1,7 @@
 //! Simple generic thread pool, with some improvements over TaskPool
 
 use std::sync::{Arc,Condvar,Mutex};
-use std::thread::Thread;
+use std;
 
 
 /// Like Taskpool, but delegates recovery to a main thread.
@@ -37,9 +37,9 @@ impl ThreadPool {
     /// Spawn a detached worker thread that executes a job function once.
     ///
     /// If the thread panics, it will not be respawned.
-    pub fn execute<F: FnOnce() + Send>(&mut self, job: F) {
+    pub fn execute<F: FnOnce() + Send + 'static>(&mut self, job: F) {
         let ctx = self.shared_ctx.clone();
-        Thread::spawn(move || {
+        std::thread::spawn(move || {
             let _sentinel = WorkerSentinel { ctx: ctx };
             job();
         });
