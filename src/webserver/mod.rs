@@ -50,7 +50,7 @@ impl WebResponse {
     /// ```
     pub fn new_html(body: String) -> WebResponse {
         let mut ret = WebResponse::new();   
-        ret.set_body_str(&body[]);
+        ret.set_body_str(&body);
         ret.set_header("Content-Type", "text/html; charset=utf-8");
         return ret;
     }
