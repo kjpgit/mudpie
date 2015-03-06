@@ -1,6 +1,5 @@
 #![feature(collections)]
 #![feature(core)]
-#![feature(env)]
 #![feature(io)]
 #![feature(net)]
 #![feature(std_misc)]

@@ -26,7 +26,7 @@ pub fn memmem(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 ///
 /// Note: Wrapper for splitn()
 pub fn split_bytes_on(src: &[u8], b: u8, max_splits: usize) -> Vec<&[u8]> {
-    let is_match = |&:f: &u8| { (*f == b) };
+    let is_match = |f: &u8| { (*f == b) };
     let mut ret = Vec::<&[u8]>::new();
     for x in src.splitn(max_splits, is_match) {
         ret.push(x);

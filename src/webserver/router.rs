@@ -83,7 +83,7 @@ impl Router {
 
 // Return: array of methods, trimmed and in lowercase
 fn parse_methods(methods: &str) -> Vec<String> {
-    let parts = methods.split_str(",");
+    let parts = methods.split(",");
     let mut ret = Vec::new();
     for p in parts {
         let method = p.trim().to_string().into_ascii_lowercase();
