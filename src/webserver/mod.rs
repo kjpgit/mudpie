@@ -253,7 +253,7 @@ impl WebServer {
         self.worker_shared_context = Some(Arc::new(ctx));
 
         println!("starting {} worker threads", self.nr_threads);
-        for _ in range(0, self.nr_threads) {
+        for _ in 0..self.nr_threads {
             self.start_new_worker();
         }
 
