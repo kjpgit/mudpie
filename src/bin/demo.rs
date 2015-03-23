@@ -1,5 +1,4 @@
 #![cfg_attr(test, allow(dead_code))]
-#![feature(env)]
 
 extern crate mudpie;
 use mudpie::{WebServer, WebRequest, WebResponse};
