@@ -94,7 +94,7 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
 
     // Also decode path into a normalized form.
     let path_decoded = byteutils::percent_decode(
-            &environ.get(b"path").unwrap());
+            &environ.get(b"path".as_slice()).unwrap());
     let path_decoded_utf8 = String::from_utf8_lossy(
             &path_decoded).into_owned();
 

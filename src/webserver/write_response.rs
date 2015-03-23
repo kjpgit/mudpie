@@ -17,7 +17,8 @@ pub fn write_response(stream: &mut GenericSocket,
     let mut protocol = "HTTP/1.1";
     if request.is_some() {
         let req = request.unwrap();
-        if &**req.environ.get(b"protocol").unwrap() == b"http/1.0" {
+        if &**req.environ.get(b"protocol".as_slice()).unwrap() 
+                == b"http/1.0" {
             protocol = "HTTP/1.0";
         }
 
