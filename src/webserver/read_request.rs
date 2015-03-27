@@ -51,12 +51,12 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
     let mut body = Vec::new();
 
     // We don't currently support chunked
-    if req.environ.contains_key(b"http_transfer-encoding".as_slice()) {
+    if req.environ.contains_key(&b"http_transfer-encoding"[..]) {
         return Err(Error::LengthRequired);
     }
 
     { // borrow scope for req.environ
-    let clen = req.environ.get(b"http_content-length".as_slice());
+    let clen = req.environ.get(&b"http_content-length"[..]);
     if clen.is_some() {
         let clen = match utils::byteutils::parse_u64(&clen.unwrap()) {
             // unparseable content-length
@@ -106,7 +106,7 @@ pub fn read_request(stream: &mut GenericSocket, max_size: usize)
 
 
 fn needs_100_continue(req: &utils::http_request::Request) -> bool {
-    let val = req.environ.get(b"http_expect".as_slice());
+    let val = req.environ.get(&b"http_expect"[..]);
     if val.is_none() {
         return false;
     }
