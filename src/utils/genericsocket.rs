@@ -12,9 +12,9 @@ pub trait GenericSocket : Send {
 
 impl<T: io::Read + io::Write + Send> GenericSocket for T {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-        return (self as &mut io::Read).read(buf);
+        return self.read(buf);
     }
     fn write_all(&mut self, buf: &[u8]) -> Result<(), io::Error> {
-        return (self as &mut io::Write).write_all(buf);
+        return self.write_all(buf);
     }
 }
