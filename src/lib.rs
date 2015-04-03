@@ -1,5 +1,4 @@
 #![feature(collections)]
-#![feature(io)]
 #![feature(tcp)]
 #![feature(std_misc)]
 

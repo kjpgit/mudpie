@@ -19,8 +19,8 @@ pub enum Error {
 }
 
 // Auto convert io::IOError into our module specific error
-impl std::error::FromError<io::Error> for Error {
-    fn from_error(err: io::Error) -> Error {
+impl std::convert::From<io::Error> for Error {
+    fn from(err: io::Error) -> Error {
         Error::IoError(err)
     }
 }
@@ -138,8 +138,7 @@ fn read_until_headers_end(buffer: &mut Vec<u8>,
         if size == 0 {
             return Err(io::Error::new(
                     io::ErrorKind::BrokenPipe,
-                    "connection closed while reading request headers", 
-                    None));
+                    "connection closed while reading request headers"));
         }
         buffer.push_all(&chunk_buff[0..size]);
 
@@ -166,8 +165,7 @@ fn read_until_size(buffer: &mut Vec<u8>,
         if size == 0 {
             return Err(io::Error::new(
                     io::ErrorKind::BrokenPipe,
-                    "connection closed while reading request body", 
-                    None));
+                    "connection closed while reading request body"));
         }
         buffer.push_all(&chunk_buff[0..size]);
     }
