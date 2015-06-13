@@ -236,8 +236,13 @@ impl WebServer {
     /// threads fail, they will be respawned.  This function does not return.
     pub fn run(&mut self, address: &str, port: i32) {
         let addr = format!("{}:{}", address, port);
+
+        // Should probably return an error instead of panicing here.
         println!("listening on {}", addr);
-        let listener = TcpListener::bind(&*addr).unwrap();
+        let listener = match TcpListener::bind(&*addr) {
+            Ok(s) => s,
+            Err(err) => panic!("listen on socket failed: {}", err)
+        };
         
         let router_moved = self.router.take().unwrap();
 
