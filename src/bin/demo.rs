@@ -29,7 +29,10 @@ fn main() {
         listen_addr = &args[1];
     }
     if args.len() > 2 {
-        listen_port = (&args[2]).parse::<i32>().unwrap();
+        listen_port = match (&args[2]).parse::<i32>() {
+            Ok(n) => n,
+            Err(err) => panic!("invalid port number: {}", err)
+        }
     }
 
 
