@@ -75,6 +75,8 @@ pub fn parse(request_bytes: &[u8]) -> Result<Request, ParseError> {
     environ.insert(b"protocol".to_vec(), protocol.clone());
 
     // Parse path and query string
+    // The OPTIONS method is allowed a path of '*'.
+    // All other methods must have a path starting with '/'.
     if method == b"options" && path == b"*" {
         environ.insert(b"path".to_vec(), path.to_vec());
         environ.insert(b"query_string".to_vec(), b"".to_vec());
