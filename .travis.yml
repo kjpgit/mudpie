@@ -2,6 +2,10 @@ env:
     global:
         - secure: bFAEJMG4wMAnJYbvCwOH2JEVTsnjZ3T9yClMzBRNpym6qegmq3UZixogO20bVV+zVwaw2CTCGJj/eK8dkup8HF+fb4iCIK6/3vp+MyMgCIZqU7k89gPidUdeqAhMSeA0mfnYuiCweot1z8A1B02jj1fK7HhSN47YQe/rJO+7S4Y=
 language: rust
+rust:
+    - stable
+    - beta
+    - nightly
 after_script:
     - cargo doc
     - mv target/doc doc

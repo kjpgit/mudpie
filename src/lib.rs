@@ -1,6 +1,7 @@
-#![feature(collections)]
+#![feature(vec_push_all)]
+#![feature(owned_ascii_ext)]
+#![feature(vec_resize)]
 #![feature(tcp)]
-#![feature(std_misc)]
 
 pub use webserver::{WebServer, WebRequest, WebResponse};
 pub use webserver::{PageFunction};
