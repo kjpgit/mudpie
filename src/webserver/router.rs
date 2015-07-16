@@ -45,12 +45,13 @@ impl Router {
         let mut found_methods = HashSet::<&str>::new();
 
         for rule in self.rules.iter() {
-            let mut matched;
-            if rule.is_prefix {
-                matched = req.path.starts_with(&rule.path);
-            } else {
-                matched = req.path == rule.path;
-            }
+            let matched = {
+                if rule.is_prefix {
+                    req.path.starts_with(&rule.path)
+                } else {
+                    req.path == rule.path
+                }
+            };
             if matched {
                 found_path_match = true;
                 // Now check methods

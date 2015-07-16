@@ -367,7 +367,7 @@ fn process_http_connection(ctx: &WorkerPrivateContext,
             let mut resp = WebResponse::new();
             resp.set_code(405, "Method not allowed");
             resp.set_body_str("Error 405: Method not allowed");
-            let methods_joined = methods.connect(", ");
+            let methods_joined = methods.join(", ");
             resp.set_header("Allow", &methods_joined);
             write_response(&mut *stream, Some(&req), &resp, log);
             return;
